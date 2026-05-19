@@ -1,0 +1,78 @@
+@import "tailwindcss";
+@config "../tailwind.config.js";
+
+@layer base {
+  body {
+    @apply bg-surface text-on-surface font-sans antialiased;
+  }
+
+  h1 {
+    @apply text-h1 font-bold;
+  }
+  h2 {
+    @apply text-h2 font-semibold;
+  }
+  h3 {
+    @apply text-h3 font-semibold;
+  }
+  p {
+    @apply text-body-md;
+  }
+}
+
+@layer components {
+  /* Botões */
+  .btn {
+    @apply px-md py-sm rounded transition-all duration-200 text-[14px] font-semibold inline-flex items-center justify-center;
+  }
+  .btn-primary {
+    @apply bg-primary-container text-white hover:shadow-level-1 hover:opacity-90;
+  }
+  .btn-secondary {
+    @apply bg-transparent text-secondary border border-outline hover:bg-surface-variant hover:shadow-level-1;
+  }
+
+  /* Cards */
+  .card {
+    @apply bg-white rounded-lg border border-outline-variant shadow-level-1 p-lg;
+  }
+  .card-header {
+    @apply border-b border-outline-variant pb-md mb-md;
+  }
+
+  /* Inputs */
+  .input-field {
+    @apply w-full bg-white border border-outline-variant rounded px-sm py-xs text-[16px] focus:border-primary-container focus:outline-none focus:ring-2 focus:ring-primary-container/20 transition-all;
+  }
+  .input-label {
+    @apply block text-[12px] font-semibold leading-none tracking-[0.02em] text-secondary mb-xs;
+  }
+
+  /* Data Grids / Tables */
+  .data-grid {
+    @apply w-full text-left text-on-surface;
+  }
+  .data-grid th {
+    @apply border-b border-outline-variant p-sm text-[12px] font-semibold tracking-[0.02em];
+  }
+  .data-grid td {
+    @apply border-b border-outline-variant p-sm text-[14px] transition-colors;
+  }
+  .data-grid tbody tr:hover td {
+    @apply bg-surface-container-low;
+  }
+
+  /* Chips */
+  .chip {
+    @apply inline-flex items-center px-sm py-xs rounded text-[12px] font-semibold uppercase tracking-wider;
+  }
+  .chip-success {
+    @apply bg-green-100 text-green-800; 
+  }
+  .chip-warning {
+    @apply bg-yellow-100 text-yellow-800;
+  }
+  .chip-error {
+    @apply bg-error-container text-on-error-container;
+  }
+}
