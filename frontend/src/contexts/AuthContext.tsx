@@ -1,12 +1,19 @@
 import React, { createContext, useContext, useState, useCallback, type ReactNode } from 'react';
-import axios from 'axios';
+import api from '../services/api';
 
-// ── Enums de Permissão (espelhando AV1) ──────────────────────────────────────
+// ── Enums de Permissão (espelhando o Prisma/Backend) ─────────────────────────
 export enum NivelPermissao {
-  ADMINISTRADOR = 'Administrador',
-  ENGENHEIRO = 'Engenheiro',
-  OPERADOR = 'Operador',
+  ADMINISTRADOR = 'ADMINISTRADOR',
+  ENGENHEIRO = 'ENGENHEIRO',
+  OPERADOR = 'OPERADOR',
 }
+
+// ── Labels amigáveis para exibição ───────────────────────────────────────────
+export const NivelPermissaoLabel: Record<NivelPermissao, string> = {
+  [NivelPermissao.ADMINISTRADOR]: 'Administrador',
+  [NivelPermissao.ENGENHEIRO]: 'Engenheiro',
+  [NivelPermissao.OPERADOR]: 'Operador',
+};
 
 // ── Interface do Funcionário autenticado ──────────────────────────────────────
 export interface UsuarioAutenticado {
@@ -19,9 +26,6 @@ export interface UsuarioAutenticado {
   foto?: string;
   token?: string;
 }
-
-// ── API Base URL ─────────────────────────────────────────────────────────────
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
 
 // ── Banco de dados local (fallback enquanto API não está pronta) ─────────────
 interface FuncionarioDB {
@@ -83,7 +87,7 @@ interface AuthProviderProps {
 
 export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [usuario, setUsuario] = useState<UsuarioAutenticado | null>(() => {
-    const stored = sessionStorage.getItem('aerocode_user');
+    const stored = sessionStorage.getItem('aerocode_usuario');
     if (stored) {
       try {
         return JSON.parse(stored) as UsuarioAutenticado;
@@ -99,7 +103,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const fazerLogin = useCallback(async (login: string, senha: string): Promise<{ sucesso: boolean; mensagem: string }> => {
     // Tenta autenticação via API primeiro
     try {
-      const response = await axios.post(`${API_URL}/api/auth/login`, {
+      const response = await api.post('/api/auth/login', {
         usuario: login,
         senha: senha,
       });
@@ -110,15 +114,16 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         id: funcionario.id.toString(),
         nome: funcionario.nome,
         usuario: funcionario.usuario,
-        telefone: funcionario.telefone,
-        endereco: funcionario.endereco,
+        telefone: funcionario.telefone || '',
+        endereco: funcionario.endereco || '',
         nivelPermissao: funcionario.nivelPermissao as NivelPermissao,
         foto: funcionario.foto,
         token,
       };
 
       setUsuario(usuarioAutenticado);
-      sessionStorage.setItem('aerocode_user', JSON.stringify(usuarioAutenticado));
+      sessionStorage.setItem('aerocode_token', token);
+      sessionStorage.setItem('aerocode_usuario', JSON.stringify(usuarioAutenticado));
 
       return { sucesso: true, mensagem: `Bem-vindo, ${funcionario.nome}!` };
     } catch (apiError) {
@@ -144,7 +149,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       };
 
       setUsuario(usuarioAutenticado);
-      sessionStorage.setItem('aerocode_user', JSON.stringify(usuarioAutenticado));
+      sessionStorage.setItem('aerocode_usuario', JSON.stringify(usuarioAutenticado));
 
       return { sucesso: true, mensagem: `Bem-vindo, ${func.nome}!` };
     }
@@ -152,7 +157,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
   const fazerLogout = useCallback(() => {
     setUsuario(null);
-    sessionStorage.removeItem('aerocode_user');
+    sessionStorage.removeItem('aerocode_token');
+    sessionStorage.removeItem('aerocode_usuario');
   }, []);
 
   const temPermissao = useCallback((niveisRequeridos: NivelPermissao[]): boolean => {

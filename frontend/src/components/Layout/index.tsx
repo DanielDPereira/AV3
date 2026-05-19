@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
-import { useAuth, NivelPermissao } from '../../contexts/AuthContext';
+import { useAuth, NivelPermissao, NivelPermissaoLabel } from '../../contexts/AuthContext';
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -153,7 +153,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
             <div className="flex items-center gap-sm px-sm py-xs">
               <span className="material-symbols-outlined text-[16px] text-outline">shield_person</span>
               <span className="font-body-sm text-body-sm text-on-surface-variant">
-                Nível: <strong className="text-on-surface">{usuario?.nivelPermissao}</strong>
+                Nível: <strong className="text-on-surface">{usuario ? NivelPermissaoLabel[usuario.nivelPermissao] : ''}</strong>
               </span>
             </div>
           </div>

@@ -1,0 +1,176 @@
+// ═══════════════════════════════════════════════════════════
+// Aerocode V3 — Prisma Schema
+// Banco de dados relacional MySQL mapeando todas as entidades
+// do sistema de gestão industrial aeronáutica.
+// ═══════════════════════════════════════════════════════════
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+// ── Funcionário (Usuário do Sistema) ─────────────────────
+// Níveis: ADMINISTRADOR, ENGENHEIRO, OPERADOR
+model Funcionario {
+  id              Int              @id @default(autoincrement())
+  nome            String           @db.VarChar(100)
+  usuario         String           @unique @db.VarChar(50)
+  senhaHash       String           @db.VarChar(255)
+  telefone        String?          @db.VarChar(20)
+  endereco        String?          @db.VarChar(200)
+  nivelPermissao  NivelPermissao   @default(OPERADOR)
+  foto            String?          @db.VarChar(500)
+  ativo           Boolean          @default(true)
+  criadoEm        DateTime         @default(now()) @map("criado_em")
+  atualizadoEm    DateTime         @updatedAt @map("atualizado_em")
+
+  // Relações
+  etapasAlocadas  EtapaFuncionario[]
+
+  @@map("funcionarios")
+}
+
+enum NivelPermissao {
+  ADMINISTRADOR
+  ENGENHEIRO
+  OPERADOR
+}
+
+// ── Aeronave ─────────────────────────────────────────────
+// Tipos: COMERCIAL, MILITAR
+model Aeronave {
+  id           Int           @id @default(autoincrement())
+  codigo       String        @unique @db.VarChar(30)
+  modelo       String        @db.VarChar(100)
+  tipo         TipoAeronave  @default(COMERCIAL)
+  capacidade   Int
+  alcance      Int           // Em km
+  criadoEm     DateTime      @default(now()) @map("criado_em")
+  atualizadoEm DateTime      @updatedAt @map("atualizado_em")
+
+  // Relações
+  pecas        Peca[]
+  etapas       Etapa[]
+  testes       Teste[]
+  relatorios   Relatorio[]
+
+  @@map("aeronaves")
+}
+
+enum TipoAeronave {
+  COMERCIAL
+  MILITAR
+}
+
+// ── Peça ─────────────────────────────────────────────────
+// Tipos: NACIONAL, IMPORTADA
+// Status: EM_PRODUCAO, EM_TRANSPORTE, PRONTA
+model Peca {
+  id           Int          @id @default(autoincrement())
+  nome         String       @db.VarChar(150)
+  tipo         TipoPeca     @default(NACIONAL)
+  fornecedor   String       @db.VarChar(100)
+  status       StatusPeca   @default(EM_PRODUCAO)
+  aeronaveId   Int?         @map("aeronave_id")
+  criadoEm     DateTime     @default(now()) @map("criado_em")
+  atualizadoEm DateTime     @updatedAt @map("atualizado_em")
+
+  // Relações
+  aeronave     Aeronave?    @relation(fields: [aeronaveId], references: [id], onDelete: SetNull)
+
+  @@map("pecas")
+}
+
+enum TipoPeca {
+  NACIONAL
+  IMPORTADA
+}
+
+enum StatusPeca {
+  EM_PRODUCAO
+  EM_TRANSPORTE
+  PRONTA
+}
+
+// ── Etapa (Fase de Produção) ─────────────────────────────
+// Status: PENDENTE, EM_ANDAMENTO, CONCLUIDA
+model Etapa {
+  id           Int              @id @default(autoincrement())
+  nome         String           @db.VarChar(150)
+  prazo        DateTime
+  status       StatusEtapa      @default(PENDENTE)
+  aeronaveId   Int              @map("aeronave_id")
+  criadoEm     DateTime         @default(now()) @map("criado_em")
+  atualizadoEm DateTime         @updatedAt @map("atualizado_em")
+
+  // Relações
+  aeronave     Aeronave         @relation(fields: [aeronaveId], references: [id], onDelete: Cascade)
+  funcionarios EtapaFuncionario[]
+
+  @@map("etapas")
+}
+
+enum StatusEtapa {
+  PENDENTE
+  EM_ANDAMENTO
+  CONCLUIDA
+}
+
+// ── Tabela intermediária: Etapa ↔ Funcionário ────────────
+model EtapaFuncionario {
+  etapaId       Int       @map("etapa_id")
+  funcionarioId Int       @map("funcionario_id")
+  alocadoEm     DateTime  @default(now()) @map("alocado_em")
+
+  etapa         Etapa        @relation(fields: [etapaId], references: [id], onDelete: Cascade)
+  funcionario   Funcionario  @relation(fields: [funcionarioId], references: [id], onDelete: Cascade)
+
+  @@id([etapaId, funcionarioId])
+  @@map("etapas_funcionarios")
+}
+
+// ── Teste ────────────────────────────────────────────────
+// Tipos: ELETRICO, HIDRAULICO, AERODINAMICO
+// Resultados: APROVADO, REPROVADO
+model Teste {
+  id           Int             @id @default(autoincrement())
+  tipo         TipoTeste
+  resultado    ResultadoTeste
+  aeronaveId   Int?            @map("aeronave_id")
+  criadoEm     DateTime        @default(now()) @map("criado_em")
+  atualizadoEm DateTime        @updatedAt @map("atualizado_em")
+
+  // Relações
+  aeronave     Aeronave?       @relation(fields: [aeronaveId], references: [id], onDelete: SetNull)
+
+  @@map("testes")
+}
+
+enum TipoTeste {
+  ELETRICO
+  HIDRAULICO
+  AERODINAMICO
+}
+
+enum ResultadoTeste {
+  APROVADO
+  REPROVADO
+}
+
+// ── Relatório ────────────────────────────────────────────
+model Relatorio {
+  id             Int       @id @default(autoincrement())
+  nomeArquivo    String    @db.VarChar(200) @map("nome_arquivo")
+  aeronaveId     Int       @map("aeronave_id")
+  conteudo       String?   @db.LongText
+  dataGeracao    DateTime  @default(now()) @map("data_geracao")
+
+  // Relações
+  aeronave       Aeronave  @relation(fields: [aeronaveId], references: [id], onDelete: Cascade)
+
+  @@map("relatorios")
+}
