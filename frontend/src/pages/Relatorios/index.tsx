@@ -1,8 +1,17 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 
 import Layout from '../../components/Layout';
 import Modal from '../../components/Modal';
-import { type Relatorio, mockRelatorios } from '../../types/relatorios';
+import api from '../../services/api';
+
+interface RelatorioAPI {
+  id: number;
+  nomeArquivo: string;
+  conteudo: string;
+  aeronaveId: number;
+  aeronave?: { codigo: string };
+  criadoEm: string;
+}
 
 const inputCls = "px-sm py-xs border border-outline-variant rounded-lg bg-surface-container-lowest text-on-surface focus:border-primary focus:ring-2 focus:ring-primary-fixed-dim focus:outline-none w-full transition-all";
 const btnPrimaryCls = "w-full md:w-auto bg-primary text-on-primary px-lg py-sm rounded-lg font-label-md text-label-md flex items-center justify-center gap-xs shadow-md hover:bg-primary-container hover:text-on-primary-container transition-all active:scale-[0.98]";
@@ -15,26 +24,57 @@ const actionBtnDeleteCls = `${actionBtnBaseCls} text-on-surface-variant hover:te
 const actionBtnViewCls = `${actionBtnBaseCls} text-on-surface-variant hover:text-primary hover:bg-primary-fixed-dim/20`;
 const actionBtnDownloadCls = `${actionBtnBaseCls} text-on-surface-variant hover:text-primary hover:bg-primary-fixed-dim/20`;
 const Relatorios: React.FC = () => {
-  const [relatorios] = useState<Relatorio[]>(mockRelatorios);
+  const [relatorios, setRelatorios] = useState<RelatorioAPI[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [submitLoading, setSubmitLoading] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isFilterOpen, setIsFilterOpen] = useState(false);
-  const [novoRelatorio, setNovoRelatorio] = useState({ aeronave: '', gerarDisco: 's' });
+  const [isViewOpen, setIsViewOpen] = useState(false);
+  const [viewTarget, setViewTarget] = useState<RelatorioAPI | null>(null);
+  const [novoRelatorio, setNovoRelatorio] = useState({ aeronaveId: '' });
   const [searchTerm, setSearchTerm] = useState('');
   const [filters, setFilters] = useState({ aeronave: 'Todas' });
 
-  const uniqueAeronaves = Array.from(new Set(relatorios.map(r => r.aeronaveCodigo)));
+  const fetchRelatorios = useCallback(async () => {
+    setIsLoading(true);
+    try { const res = await api.get('/api/relatorios'); setRelatorios(res.data); } catch (err) { console.error('Erro ao buscar relatórios:', err); } finally { setIsLoading(false); }
+  }, []);
+  useEffect(() => { fetchRelatorios(); }, [fetchRelatorios]);
+
+  const uniqueAeronaves = Array.from(new Set(relatorios.filter(r => r.aeronave).map(r => r.aeronave!.codigo)));
 
   const filteredRelatorios = relatorios.filter(rel => {
     const matchesSearch = rel.nomeArquivo.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesAeronave = filters.aeronave === 'Todas' || rel.aeronaveCodigo === filters.aeronave;
+    const matchesAeronave = filters.aeronave === 'Todas' || rel.aeronave?.codigo === filters.aeronave;
     return matchesSearch && matchesAeronave;
   });
 
-  const handleGerarRelatorio = (e: React.FormEvent) => {
+  const handleGerarRelatorio = async (e: React.FormEvent) => {
     e.preventDefault();
-    setIsModalOpen(false);
-    setNovoRelatorio({ aeronave: '', gerarDisco: 's' });
+    setSubmitLoading(true);
+    try {
+      await api.post('/api/relatorios', { aeronaveId: Number(novoRelatorio.aeronaveId) });
+      setIsModalOpen(false); setNovoRelatorio({ aeronaveId: '' }); fetchRelatorios();
+    } catch (err) { console.error('Erro ao gerar relatório:', err); } finally { setSubmitLoading(false); }
   };
+
+  const handleView = (rel: RelatorioAPI) => { setViewTarget(rel); setIsViewOpen(true); };
+
+  const handleDownload = async (rel: RelatorioAPI) => {
+    try {
+      const res = await api.get(`/api/relatorios/${rel.id}/download`, { responseType: 'blob' });
+      const url = window.URL.createObjectURL(new Blob([res.data]));
+      const a = document.createElement('a'); a.href = url; a.download = rel.nomeArquivo; a.click();
+      window.URL.revokeObjectURL(url);
+    } catch { /* fallback: download from content */
+      const blob = new Blob([rel.conteudo || ''], { type: 'text/plain' });
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a'); a.href = url; a.download = rel.nomeArquivo; a.click();
+      window.URL.revokeObjectURL(url);
+    }
+  };
+
+  const formatDate = (iso: string) => { try { return new Date(iso).toLocaleDateString('pt-BR'); } catch { return iso; } };
 
   return (
     <Layout>
@@ -104,22 +144,24 @@ const Relatorios: React.FC = () => {
                         </div>
                       </td>
                       <td className="py-md px-lg font-body-sm text-body-sm text-on-surface">
-                        {relatorio.aeronaveCodigo}
+                        {relatorio.aeronave?.codigo || '-'}
                       </td>
                       <td className="py-md px-lg font-body-sm text-body-sm text-on-surface-variant hidden sm:table-cell">
-                        {relatorio.dataGeracao}
+                        {formatDate(relatorio.criadoEm)}
                       </td>
                       <td className="py-md px-lg text-right">
                         <div className="flex items-center justify-end gap-xs lg:opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 transition-opacity">
                           <button
                             aria-label={`Visualizar relatório ${relatorio.nomeArquivo}`}
                             className={actionBtnViewCls}
+                            onClick={() => handleView(relatorio)}
                           >
                             <span aria-hidden="true" className="material-symbols-outlined text-[20px]">visibility</span>
                           </button>
                           <button
                             aria-label={`Baixar relatório ${relatorio.nomeArquivo}`}
                             className={actionBtnDownloadCls}
+                            onClick={() => handleDownload(relatorio)}
                           >
                             <span aria-hidden="true" className="material-symbols-outlined text-[20px]">download</span>
                           </button>
@@ -137,19 +179,14 @@ const Relatorios: React.FC = () => {
       <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} title="Gerar Relatório de Entrega">
         <form className="flex flex-col gap-md" onSubmit={handleGerarRelatorio}>
           <div className="flex flex-col gap-xs">
-            <label className="font-label-md text-on-surface">Código da Aeronave</label>
-            <input type="text" value={novoRelatorio.aeronave} onChange={(e) => setNovoRelatorio({ ...novoRelatorio, aeronave: e.target.value })} className={inputCls} required />
-          </div>
-          <div className="flex flex-col gap-xs">
-            <label className="font-label-md text-on-surface">Deseja gerar o .txt em disco?</label>
-            <select value={novoRelatorio.gerarDisco} onChange={(e) => setNovoRelatorio({ ...novoRelatorio, gerarDisco: e.target.value })} className={inputCls} required>
-              <option value="s">Sim</option>
-              <option value="n">Não</option>
-            </select>
+            <label className="font-label-md text-on-surface">ID da Aeronave</label>
+            <input type="number" value={novoRelatorio.aeronaveId} onChange={(e) => setNovoRelatorio({ ...novoRelatorio, aeronaveId: e.target.value })} className={inputCls} required />
           </div>
           <div className="flex justify-end gap-sm mt-md">
             <button type="button" onClick={() => setIsModalOpen(false)} className="px-md py-sm rounded text-primary hover:bg-primary-fixed-dim/20">Cancelar</button>
-            <button type="submit" className="px-md py-sm rounded bg-primary text-on-primary hover:opacity-90 shadow-sm">Gerar Relatório</button>
+            <button type="submit" disabled={submitLoading} className="px-md py-sm rounded bg-primary text-on-primary hover:opacity-90 shadow-sm disabled:opacity-60">
+              {submitLoading ? 'Gerando...' : 'Gerar Relatório'}
+            </button>
           </div>
         </form>
       </Modal>
@@ -186,6 +223,21 @@ const Relatorios: React.FC = () => {
               className="px-md py-sm rounded bg-primary text-on-primary hover:opacity-90 transition-opacity font-label-md"
             >
               Aplicar Filtros
+            </button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* Modal: Visualizar */}
+      <Modal isOpen={isViewOpen} onClose={() => setIsViewOpen(false)} title={`Relatório — ${viewTarget?.nomeArquivo || ''}`}>
+        <div className="flex flex-col gap-md">
+          <div className="bg-surface-container-low rounded-lg p-md border border-outline-variant max-h-[400px] overflow-y-auto">
+            <pre className="font-code text-code text-on-surface whitespace-pre-wrap text-[13px] leading-relaxed">{viewTarget?.conteudo || 'Sem conteúdo'}</pre>
+          </div>
+          <div className="flex justify-end gap-sm">
+            <button type="button" onClick={() => setIsViewOpen(false)} className="px-md py-sm rounded text-primary hover:bg-primary-fixed">Fechar</button>
+            <button type="button" onClick={() => viewTarget && handleDownload(viewTarget)} className="px-md py-sm rounded bg-primary text-on-primary hover:opacity-90 flex items-center gap-xs">
+              <span className="material-symbols-outlined text-[18px]">download</span> Baixar TXT
             </button>
           </div>
         </div>

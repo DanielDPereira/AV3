@@ -1,9 +1,19 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 
 import Layout from '../../components/Layout';
 import Modal from '../../components/Modal';
 import Tooltip from '../../components/Tooltip';
-import { type Peca, mockPecas } from '../../types/pecas';
+import api from '../../services/api';
+
+interface PecaAPI {
+  id: number;
+  nome: string;
+  tipo: 'NACIONAL' | 'IMPORTADA';
+  fornecedor: string;
+  status: 'EM_PRODUCAO' | 'EM_TRANSPORTE' | 'PRONTA';
+  aeronaveId: number | null;
+  aeronave?: { codigo: string; modelo?: string };
+}
 
 const inputCls = "px-sm py-xs border border-outline-variant rounded-lg bg-surface-container-lowest text-on-surface focus:border-primary focus:ring-2 focus:ring-primary-fixed-dim focus:outline-none w-full transition-all";
 const btnPrimaryCls = "w-full md:w-auto bg-primary text-on-primary px-lg py-sm rounded-lg font-label-md text-label-md flex items-center justify-center gap-xs shadow-md hover:bg-primary-container hover:text-on-primary-container transition-all active:scale-[0.98]";
@@ -16,112 +26,97 @@ const actionBtnDeleteCls = `${actionBtnBaseCls} text-on-surface-variant hover:te
 const actionBtnViewCls = `${actionBtnBaseCls} text-on-surface-variant hover:text-primary hover:bg-primary-fixed-dim/20`;
 const actionBtnStatusCls = `${actionBtnBaseCls} text-on-surface-variant hover:text-primary hover:bg-primary-fixed-dim/20`;
 
-type StatusKey = 'producao' | 'transporte' | 'pronta';
+type StatusKey = 'EM_PRODUCAO' | 'EM_TRANSPORTE' | 'PRONTA';
 
-const statusOptions: Record<StatusKey, { label: Peca['status']; icon: string; variant: string }> = {
-  producao: { label: 'Em produção', icon: 'precision_manufacturing', variant: 'bg-primary-fixed text-on-primary-fixed' },
-  transporte: { label: 'Em transporte', icon: 'local_shipping', variant: 'bg-secondary-container text-on-secondary-container' },
-  pronta: { label: 'Pronta', icon: 'check_circle', variant: 'bg-surface-tint text-on-primary' },
+const statusOptions: Record<StatusKey, { label: string; icon: string; variant: string }> = {
+  EM_PRODUCAO: { label: 'Em produção', icon: 'precision_manufacturing', variant: 'bg-primary-fixed text-on-primary-fixed' },
+  EM_TRANSPORTE: { label: 'Em transporte', icon: 'local_shipping', variant: 'bg-secondary-container text-on-secondary-container' },
+  PRONTA: { label: 'Pronta', icon: 'check_circle', variant: 'bg-surface-tint text-on-primary' },
 };
 
-const statusToKey = (status: Peca['status']): StatusKey =>
-  status === 'Em produção' ? 'producao' : status === 'Em transporte' ? 'transporte' : 'pronta';
+const getTipoBadge = (tipo: string) => tipo === 'NACIONAL'
+  ? 'bg-secondary-fixed text-on-secondary-fixed'
+  : 'bg-tertiary-fixed text-on-tertiary-fixed';
+const getTipoLabel = (tipo: string) => tipo === 'NACIONAL' ? 'Nacional' : 'Importada';
 
 const Pecas: React.FC = () => {
-  const [pecas, setPecas] = useState<Peca[]>(mockPecas);
+  const [pecas, setPecas] = useState<PecaAPI[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [submitLoading, setSubmitLoading] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [novaPeca, setNovaPeca] = useState({ aeronave: '', nome: '', fornecedor: '', tipo: 'Nacional' });
+  const [novaPeca, setNovaPeca] = useState({ aeronaveId: '', nome: '', fornecedor: '', tipo: 'NACIONAL' });
 
-  // Edit state
   const [isEditOpen, setIsEditOpen] = useState(false);
-  const [editTarget, setEditTarget] = useState<Peca | null>(null);
-  const [editForm, setEditForm] = useState({ aeronave: '', nome: '', fornecedor: '', tipo: 'Nacional' });
+  const [editTarget, setEditTarget] = useState<PecaAPI | null>(null);
+  const [editForm, setEditForm] = useState({ aeronaveId: '', nome: '', fornecedor: '', tipo: 'NACIONAL' });
 
-  // Delete state
   const [isDeleteOpen, setIsDeleteOpen] = useState(false);
-  const [deleteTarget, setDeleteTarget] = useState<Peca | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<PecaAPI | null>(null);
 
-  // Status state
   const [isStatusOpen, setIsStatusOpen] = useState(false);
-  const [statusTarget, setStatusTarget] = useState<Peca | null>(null);
-  const [statusVal, setStatusVal] = useState<StatusKey>('producao');
+  const [statusTarget, setStatusTarget] = useState<PecaAPI | null>(null);
+  const [statusVal, setStatusVal] = useState<StatusKey>('EM_PRODUCAO');
   const [searchTerm, setSearchTerm] = useState('');
   const [isFilterOpen, setIsFilterOpen] = useState(false);
   const [filters, setFilters] = useState({ tipo: 'Todos', status: 'Todos', aeronave: 'Todas' });
 
-  const uniqueAeronaves = Array.from(new Set(pecas.filter(p => p.aeronave).map(p => p.aeronave!)));
+  const fetchPecas = useCallback(async () => {
+    setIsLoading(true);
+    try { const res = await api.get('/api/pecas'); setPecas(res.data); } catch (err) { console.error('Erro ao buscar peças:', err); } finally { setIsLoading(false); }
+  }, []);
+  useEffect(() => { fetchPecas(); }, [fetchPecas]);
+
+  const uniqueAeronaves = Array.from(new Set(pecas.filter(p => p.aeronave).map(p => p.aeronave!.codigo)));
 
   const filteredPecas = pecas.filter(peca => {
+    const aeroCode = peca.aeronave?.codigo || '';
     const matchesSearch = peca.nome.toLowerCase().includes(searchTerm.toLowerCase()) || 
-                         (peca.aeronave && peca.aeronave.toLowerCase().includes(searchTerm.toLowerCase()));
-    const matchesTipo = filters.tipo === 'Todos' || peca.tipo === filters.tipo;
-    const matchesStatus = filters.status === 'Todos' || peca.status === filters.status;
-    const matchesAeronave = filters.aeronave === 'Todas' || peca.aeronave === filters.aeronave;
+                         aeroCode.toLowerCase().includes(searchTerm.toLowerCase());
+    const matchesTipo = filters.tipo === 'Todos' || peca.tipo === filters.tipo.toUpperCase();
+    const matchesStatus = filters.status === 'Todos' || statusOptions[peca.status]?.label === filters.status;
+    const matchesAeronave = filters.aeronave === 'Todas' || aeroCode === filters.aeronave;
     return matchesSearch && matchesTipo && matchesStatus && matchesAeronave;
   });
 
-  const handleCreate = (e: React.FormEvent) => {
+  const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
-    const peca: Peca = {
-      id: Math.random().toString(),
-      aeronave: novaPeca.aeronave,
-      nome: novaPeca.nome,
-      fornecedor: novaPeca.fornecedor,
-      tipo: novaPeca.tipo as 'Nacional' | 'Importada',
-      status: 'Em produção',
-      statusBadgeVariant: statusOptions.producao.variant,
-      statusIcon: statusOptions.producao.icon,
-      tipoBadgeVariant: novaPeca.tipo === 'Nacional' ? 'bg-secondary-fixed text-on-secondary-fixed' : 'bg-tertiary-fixed text-on-tertiary-fixed',
-    };
-    setPecas([peca, ...pecas]);
-    setIsModalOpen(false);
-    setNovaPeca({ aeronave: '', nome: '', fornecedor: '', tipo: 'Nacional' });
+    setSubmitLoading(true);
+    try {
+      await api.post('/api/pecas', { nome: novaPeca.nome, tipo: novaPeca.tipo, fornecedor: novaPeca.fornecedor, aeronaveId: novaPeca.aeronaveId ? Number(novaPeca.aeronaveId) : undefined });
+      setIsModalOpen(false); setNovaPeca({ aeronaveId: '', nome: '', fornecedor: '', tipo: 'NACIONAL' }); fetchPecas();
+    } catch (err) { console.error('Erro ao criar peça:', err); } finally { setSubmitLoading(false); }
   };
 
-  const openEdit = (p: Peca) => {
+  const openEdit = (p: PecaAPI) => {
     setEditTarget(p);
-    setEditForm({ aeronave: p.aeronave || '', nome: p.nome, fornecedor: p.fornecedor, tipo: p.tipo });
+    setEditForm({ aeronaveId: p.aeronaveId ? String(p.aeronaveId) : '', nome: p.nome, fornecedor: p.fornecedor, tipo: p.tipo });
     setIsEditOpen(true);
   };
-  const handleEdit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!editTarget) return;
-    setPecas(pecas.map(p =>
-      p.id === editTarget.id
-        ? {
-            ...p,
-            aeronave: editForm.aeronave,
-            nome: editForm.nome,
-            fornecedor: editForm.fornecedor,
-            tipo: editForm.tipo as 'Nacional' | 'Importada',
-            tipoBadgeVariant: editForm.tipo === 'Nacional' ? 'bg-secondary-fixed text-on-secondary-fixed' : 'bg-tertiary-fixed text-on-tertiary-fixed',
-          }
-        : p
-    ));
-    setIsEditOpen(false);
+  const handleEdit = async (e: React.FormEvent) => {
+    e.preventDefault(); if (!editTarget) return;
+    setSubmitLoading(true);
+    try {
+      await api.put(`/api/pecas/${editTarget.id}`, { nome: editForm.nome, tipo: editForm.tipo, fornecedor: editForm.fornecedor, aeronaveId: editForm.aeronaveId ? Number(editForm.aeronaveId) : null });
+      setIsEditOpen(false); fetchPecas();
+    } catch (err) { console.error('Erro ao editar peça:', err); } finally { setSubmitLoading(false); }
   };
 
-  const openDelete = (p: Peca) => { setDeleteTarget(p); setIsDeleteOpen(true); };
-  const handleDelete = () => {
+  const openDelete = (p: PecaAPI) => { setDeleteTarget(p); setIsDeleteOpen(true); };
+  const handleDelete = async () => {
     if (!deleteTarget) return;
-    setPecas(pecas.filter(p => p.id !== deleteTarget.id));
-    setIsDeleteOpen(false);
+    setSubmitLoading(true);
+    try { await api.delete(`/api/pecas/${deleteTarget.id}`); setIsDeleteOpen(false); fetchPecas(); } catch (err) { console.error('Erro ao excluir peça:', err); } finally { setSubmitLoading(false); }
   };
 
-  const openStatus = (p: Peca) => {
+  const openStatus = (p: PecaAPI) => {
     setStatusTarget(p);
-    setStatusVal(statusToKey(p.status));
+    setStatusVal(p.status);
     setIsStatusOpen(true);
   };
-  const handleStatus = () => {
+  const handleStatus = async () => {
     if (!statusTarget) return;
-    const opt = statusOptions[statusVal];
-    setPecas(pecas.map(p =>
-      p.id === statusTarget.id
-        ? { ...p, status: opt.label, statusIcon: opt.icon, statusBadgeVariant: opt.variant }
-        : p
-    ));
-    setIsStatusOpen(false);
+    setSubmitLoading(true);
+    try { await api.put(`/api/pecas/${statusTarget.id}`, { status: statusVal }); setIsStatusOpen(false); fetchPecas(); } catch (err) { console.error('Erro ao atualizar status:', err); } finally { setSubmitLoading(false); }
   };
 
   return (
@@ -182,16 +177,16 @@ const Pecas: React.FC = () => {
                     <tr key={peca.id} className="hover:bg-surface-container-low transition-colors group">
                       <td className="p-md text-body-sm font-body-sm text-on-surface font-medium">{peca.nome}</td>
                       <td className="p-md">
-                        <span className={`inline-flex items-center px-2 py-1 rounded-full text-label-sm font-label-sm ${peca.tipoBadgeVariant}`}>
-                          {peca.tipo}
+                        <span className={`inline-flex items-center px-2 py-1 rounded-full text-label-sm font-label-sm ${getTipoBadge(peca.tipo)}`}>
+                          {getTipoLabel(peca.tipo)}
                         </span>
                       </td>
                       <td className="p-md text-body-sm font-body-sm text-secondary hidden lg:table-cell">{peca.fornecedor}</td>
-                      <td className="p-md text-body-sm font-body-sm text-on-surface hidden sm:table-cell">{peca.aeronave || '-'}</td>
+                      <td className="p-md text-body-sm font-body-sm text-on-surface hidden sm:table-cell">{peca.aeronave?.codigo || '-'}</td>
                       <td className="p-md">
-                        <span className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-label-sm font-label-sm ${peca.statusBadgeVariant}`}>
-                          <span className="material-symbols-outlined text-[14px]">{peca.statusIcon}</span>
-                          {peca.status}
+                        <span className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-label-sm font-label-sm ${statusOptions[peca.status]?.variant || ''}`}>
+                          <span className="material-symbols-outlined text-[14px]">{statusOptions[peca.status]?.icon || ''}</span>
+                          {statusOptions[peca.status]?.label || peca.status}
                         </span>
                       </td>
                       <td className="p-md text-right">
@@ -249,8 +244,8 @@ const Pecas: React.FC = () => {
       <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} title="Adicionar Peça a uma Aeronave">
         <form className="flex flex-col gap-md" onSubmit={handleCreate}>
           <div className="flex flex-col gap-xs">
-            <label className="font-label-md text-on-surface">Código da Aeronave alvo</label>
-            <input type="text" value={novaPeca.aeronave} onChange={(e) => setNovaPeca({ ...novaPeca, aeronave: e.target.value })} className={inputCls} required />
+            <label className="font-label-md text-on-surface">ID da Aeronave alvo</label>
+            <input type="number" value={novaPeca.aeronaveId} onChange={(e) => setNovaPeca({ ...novaPeca, aeronaveId: e.target.value })} className={inputCls} placeholder="Opcional" />
           </div>
           <div className="flex flex-col gap-xs">
             <label className="font-label-md text-on-surface">Nome do componente</label>
@@ -263,8 +258,8 @@ const Pecas: React.FC = () => {
           <div className="flex flex-col gap-xs">
             <label className="font-label-md text-on-surface">Origem</label>
             <select value={novaPeca.tipo} onChange={(e) => setNovaPeca({ ...novaPeca, tipo: e.target.value })} className={inputCls} required>
-              <option value="Nacional">1- Nacional</option>
-              <option value="Importada">2- Importada</option>
+              <option value="NACIONAL">1- Nacional</option>
+              <option value="IMPORTADA">2- Importada</option>
             </select>
           </div>
           <div className="flex justify-end gap-sm mt-md">
@@ -277,8 +272,8 @@ const Pecas: React.FC = () => {
       <Modal isOpen={isEditOpen} onClose={() => setIsEditOpen(false)} title={`Editar — ${editTarget?.nome || ''}`}>
         <form className="flex flex-col gap-md" onSubmit={handleEdit}>
           <div className="flex flex-col gap-xs">
-            <label className="font-label-md text-on-surface">Código da Aeronave</label>
-            <input type="text" value={editForm.aeronave} onChange={(e) => setEditForm({ ...editForm, aeronave: e.target.value })} className={inputCls} />
+            <label className="font-label-md text-on-surface">ID da Aeronave</label>
+            <input type="number" value={editForm.aeronaveId} onChange={(e) => setEditForm({ ...editForm, aeronaveId: e.target.value })} className={inputCls} placeholder="Opcional" />
           </div>
           <div className="flex flex-col gap-xs">
             <label className="font-label-md text-on-surface">Nome do componente</label>
@@ -291,8 +286,8 @@ const Pecas: React.FC = () => {
           <div className="flex flex-col gap-xs">
             <label className="font-label-md text-on-surface">Origem</label>
             <select value={editForm.tipo} onChange={(e) => setEditForm({ ...editForm, tipo: e.target.value })} className={inputCls} required>
-              <option value="Nacional">1- Nacional</option>
-              <option value="Importada">2- Importada</option>
+              <option value="NACIONAL">1- Nacional</option>
+              <option value="IMPORTADA">2- Importada</option>
             </select>
           </div>
           <div className="flex justify-end gap-sm mt-md">

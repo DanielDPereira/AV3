@@ -1,8 +1,17 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import Layout from '../../components/Layout';
 import Modal from '../../components/Modal';
 import Tooltip from '../../components/Tooltip';
-import { type Funcionario, mockFuncionarios } from '../../types/funcionarios';
+import api from '../../services/api';
+
+interface FuncAPI {
+  id: number;
+  nome: string;
+  usuario: string;
+  telefone: string;
+  endereco: string;
+  nivelPermissao: 'ADMINISTRADOR' | 'ENGENHEIRO' | 'OPERADOR';
+}
 
 const inputCls = "px-sm py-xs border border-outline-variant rounded-lg bg-surface-container-lowest text-on-surface focus:border-primary focus:ring-2 focus:ring-primary-fixed-dim focus:outline-none w-full transition-all";
 const btnPrimaryCls = "w-full md:w-auto bg-primary text-on-primary px-lg py-sm rounded-lg font-label-md text-label-md flex items-center justify-center gap-xs shadow-md hover:bg-primary-container hover:text-on-primary-container transition-all active:scale-[0.98]";
@@ -14,50 +23,65 @@ const actionBtnEditCls = `${actionBtnBaseCls} text-on-surface-variant hover:text
 const actionBtnDeleteCls = `${actionBtnBaseCls} text-on-surface-variant hover:text-error hover:bg-error-container/30`;
 const actionBtnViewCls = `${actionBtnBaseCls} text-on-surface-variant hover:text-primary hover:bg-primary-fixed-dim/20`;
 
-const nivelMap = (tipo: string): { nivel: Funcionario['nivel']; variant: string } => {
-  if (tipo === '3') return { nivel: 'Administrador', variant: 'bg-primary-container text-on-primary-container border-primary-container' };
-  if (tipo === '2') return { nivel: 'Engenheiro', variant: 'bg-secondary-container text-on-secondary-container border-secondary-container' };
-  return { nivel: 'Operador', variant: 'bg-surface-container-high text-on-surface border-outline-variant' };
+const nivelLabels: Record<string, string> = { ADMINISTRADOR: 'Administrador', ENGENHEIRO: 'Engenheiro', OPERADOR: 'Operador' };
+const nivelVariants: Record<string, string> = {
+  ADMINISTRADOR: 'bg-primary-container text-on-primary-container border-primary-container',
+  ENGENHEIRO: 'bg-secondary-container text-on-secondary-container border-secondary-container',
+  OPERADOR: 'bg-surface-container-high text-on-surface border-outline-variant',
 };
-const nivelToTipo = (nivel: string) => nivel === 'Administrador' ? '3' : nivel === 'Engenheiro' ? '2' : '1';
+const getIniciais = (nome: string) => nome.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase() || 'NO';
 
 const Funcionarios: React.FC = () => {
-  const [funcionarios, setFuncionarios] = useState<Funcionario[]>(mockFuncionarios);
+  const [funcionarios, setFuncionarios] = useState<FuncAPI[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [submitLoading, setSubmitLoading] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [novoFunc, setNovoFunc] = useState({ nome: '', usuario: '', senha: '', telefone: '', endereco: '', tipo: '1' });
+  const [novoFunc, setNovoFunc] = useState({ nome: '', usuario: '', senha: '', telefone: '', endereco: '', tipo: 'OPERADOR' });
   const [isEditOpen, setIsEditOpen] = useState(false);
-  const [editTarget, setEditTarget] = useState<Funcionario | null>(null);
-  const [editForm, setEditForm] = useState({ nome: '', telefone: '', endereco: '', usuario: '', tipo: '1' });
+  const [editTarget, setEditTarget] = useState<FuncAPI | null>(null);
+  const [editForm, setEditForm] = useState({ nome: '', telefone: '', endereco: '', usuario: '', tipo: 'OPERADOR' });
   const [isDeleteOpen, setIsDeleteOpen] = useState(false);
-  const [deleteTarget, setDeleteTarget] = useState<Funcionario | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<FuncAPI | null>(null);
   const [isFilterOpen, setIsFilterOpen] = useState(false);
   const [filters, setFilters] = useState({ nivel: 'Todos', search: '' });
+
+  const fetchFuncionarios = useCallback(async () => {
+    setIsLoading(true);
+    try { const res = await api.get('/api/funcionarios'); setFuncionarios(res.data); } catch (err) { console.error('Erro ao buscar funcionários:', err); } finally { setIsLoading(false); }
+  }, []);
+  useEffect(() => { fetchFuncionarios(); }, [fetchFuncionarios]);
 
   const filteredFuncionarios = funcionarios.filter(f => {
     const matchesSearch = f.nome.toLowerCase().includes(filters.search.toLowerCase()) || 
                          f.usuario.toLowerCase().includes(filters.search.toLowerCase());
-    const matchesNivel = filters.nivel === 'Todos' || f.nivel === filters.nivel;
+    const matchesNivel = filters.nivel === 'Todos' || nivelLabels[f.nivelPermissao] === filters.nivel;
     return matchesSearch && matchesNivel;
   });
 
-  const handleCreate = (e: React.FormEvent) => {
+  const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
-    const { nivel, variant } = nivelMap(novoFunc.tipo);
-    const func: Funcionario = { id: Math.random().toString(), nome: novoFunc.nome, usuario: novoFunc.usuario, telefone: novoFunc.telefone, endereco: novoFunc.endereco, nivel, nivelVariant: variant, iniciais: novoFunc.nome.substring(0, 2).toUpperCase() || 'NO', iniciaisVariant: 'bg-green-100 text-green-800' };
-    setFuncionarios([func, ...funcionarios]);
-    setIsModalOpen(false);
-    setNovoFunc({ nome: '', usuario: '', senha: '', telefone: '', endereco: '', tipo: '1' });
+    setSubmitLoading(true);
+    try {
+      await api.post('/api/funcionarios', { nome: novoFunc.nome, usuario: novoFunc.usuario, senha: novoFunc.senha, telefone: novoFunc.telefone, endereco: novoFunc.endereco, nivelPermissao: novoFunc.tipo });
+      setIsModalOpen(false); setNovoFunc({ nome: '', usuario: '', senha: '', telefone: '', endereco: '', tipo: 'OPERADOR' }); fetchFuncionarios();
+    } catch (err) { console.error('Erro ao criar funcionário:', err); } finally { setSubmitLoading(false); }
   };
 
-  const openEdit = (f: Funcionario) => { setEditTarget(f); setEditForm({ nome: f.nome, telefone: f.telefone, endereco: f.endereco, usuario: f.usuario, tipo: nivelToTipo(f.nivel) }); setIsEditOpen(true); };
-  const handleEdit = (e: React.FormEvent) => {
+  const openEdit = (f: FuncAPI) => { setEditTarget(f); setEditForm({ nome: f.nome, telefone: f.telefone, endereco: f.endereco, usuario: f.usuario, tipo: f.nivelPermissao }); setIsEditOpen(true); };
+  const handleEdit = async (e: React.FormEvent) => {
     e.preventDefault(); if (!editTarget) return;
-    const { nivel, variant } = nivelMap(editForm.tipo);
-    setFuncionarios(funcionarios.map(f => f.id === editTarget.id ? { ...f, nome: editForm.nome, telefone: editForm.telefone, endereco: editForm.endereco, usuario: editForm.usuario, nivel, nivelVariant: variant, iniciais: editForm.nome.substring(0, 2).toUpperCase() || 'NO' } : f));
-    setIsEditOpen(false);
+    setSubmitLoading(true);
+    try {
+      await api.put(`/api/funcionarios/${editTarget.id}`, { nome: editForm.nome, telefone: editForm.telefone, endereco: editForm.endereco, usuario: editForm.usuario, nivelPermissao: editForm.tipo });
+      setIsEditOpen(false); fetchFuncionarios();
+    } catch (err) { console.error('Erro ao editar funcionário:', err); } finally { setSubmitLoading(false); }
   };
-  const openDelete = (f: Funcionario) => { setDeleteTarget(f); setIsDeleteOpen(true); };
-  const handleDelete = () => { if (!deleteTarget) return; setFuncionarios(funcionarios.filter(f => f.id !== deleteTarget.id)); setIsDeleteOpen(false); };
+  const openDelete = (f: FuncAPI) => { setDeleteTarget(f); setIsDeleteOpen(true); };
+  const handleDelete = async () => {
+    if (!deleteTarget) return;
+    setSubmitLoading(true);
+    try { await api.delete(`/api/funcionarios/${deleteTarget.id}`); setIsDeleteOpen(false); fetchFuncionarios(); } catch (err) { console.error('Erro ao excluir funcionário:', err); } finally { setSubmitLoading(false); }
+  };
 
   return (
     <Layout>
@@ -118,19 +142,15 @@ const Funcionarios: React.FC = () => {
                     <tr key={func.id} className="hover:bg-surface-container-low transition-colors group">
                       <td className="py-md px-lg">
                         <div className="flex items-center gap-md">
-                          <div className={`w-10 h-10 rounded-full ${func.iniciaisVariant} flex items-center justify-center font-label-md text-label-md shrink-0 overflow-hidden`}>
-                            {func.foto ? (
-                              <img src={func.foto} alt={func.nome} className="w-full h-full object-cover" />
-                            ) : (
-                              func.iniciais
-                            )}
+                          <div className={`w-10 h-10 rounded-full bg-primary-fixed flex items-center justify-center font-label-md text-label-md shrink-0 overflow-hidden text-on-primary-fixed`}>
+                            {getIniciais(func.nome)}
                           </div>
                           <div className="min-w-0"><p className="font-label-md text-label-md text-on-surface truncate">{func.nome}</p><p className="font-body-sm text-body-sm text-on-surface-variant truncate">@{func.usuario}</p></div>
                         </div>
                       </td>
                       <td className="py-md px-lg font-body-md text-body-md text-on-surface-variant whitespace-nowrap hidden lg:table-cell">{func.telefone}</td>
                       <td className="py-md px-lg font-body-sm text-body-sm text-on-surface-variant max-w-[200px] truncate hidden sm:table-cell" title={func.endereco}>{func.endereco}</td>
-                      <td className="py-md px-lg"><span className={`inline-flex items-center px-3 py-1 rounded-full ${func.nivelVariant} font-label-sm text-label-sm border`}>{func.nivel}</span></td>
+                      <td className="py-md px-lg"><span className={`inline-flex items-center px-3 py-1 rounded-full ${nivelVariants[func.nivelPermissao] || ''} font-label-sm text-label-sm border`}>{nivelLabels[func.nivelPermissao] || func.nivelPermissao}</span></td>
                       <td className="py-md px-lg text-right">
                         <div className="flex items-center justify-end gap-xs lg:opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 transition-opacity">
                           <Tooltip label="Editar">
@@ -172,7 +192,7 @@ const Funcionarios: React.FC = () => {
           <div className="flex flex-col gap-xs"><label className="font-label-md text-on-surface">Endereço</label><input type="text" value={novoFunc.endereco} onChange={(e) => setNovoFunc({...novoFunc, endereco: e.target.value})} className={inputCls} required /></div>
           <div className="flex flex-col gap-xs"><label className="font-label-md text-on-surface">Usuário (Login)</label><input type="text" value={novoFunc.usuario} onChange={(e) => setNovoFunc({...novoFunc, usuario: e.target.value})} className={inputCls} required /></div>
           <div className="flex flex-col gap-xs"><label className="font-label-md text-on-surface">Senha</label><input type="password" value={novoFunc.senha} onChange={(e) => setNovoFunc({...novoFunc, senha: e.target.value})} className={inputCls} required /></div>
-          <div className="flex flex-col gap-xs"><label className="font-label-md text-on-surface">Tipo de Conta</label><select value={novoFunc.tipo} onChange={(e) => setNovoFunc({...novoFunc, tipo: e.target.value})} className={inputCls} required><option value="1">1- Operador</option><option value="2">2- Engenheiro</option><option value="3">3- Admin</option></select></div>
+          <div className="flex flex-col gap-xs"><label className="font-label-md text-on-surface">Tipo de Conta</label><select value={novoFunc.tipo} onChange={(e) => setNovoFunc({...novoFunc, tipo: e.target.value})} className={inputCls} required><option value="OPERADOR">1- Operador</option><option value="ENGENHEIRO">2- Engenheiro</option><option value="ADMINISTRADOR">3- Admin</option></select></div>
           <div className="flex justify-end gap-sm mt-md">
             <button type="button" onClick={() => setIsModalOpen(false)} className="px-md py-sm rounded text-primary hover:bg-primary-fixed">Cancelar</button>
             <button type="submit" className="px-md py-sm rounded bg-primary text-on-primary hover:opacity-90">Cadastrar</button>
@@ -186,7 +206,7 @@ const Funcionarios: React.FC = () => {
           <div className="flex flex-col gap-xs"><label className="font-label-md text-on-surface">Telefone</label><input type="text" value={editForm.telefone} onChange={(e) => setEditForm({...editForm, telefone: e.target.value})} className={inputCls} required /></div>
           <div className="flex flex-col gap-xs"><label className="font-label-md text-on-surface">Endereço</label><input type="text" value={editForm.endereco} onChange={(e) => setEditForm({...editForm, endereco: e.target.value})} className={inputCls} required /></div>
           <div className="flex flex-col gap-xs"><label className="font-label-md text-on-surface">Usuário</label><input type="text" value={editForm.usuario} onChange={(e) => setEditForm({...editForm, usuario: e.target.value})} className={inputCls} required /></div>
-          <div className="flex flex-col gap-xs"><label className="font-label-md text-on-surface">Tipo de Conta</label><select value={editForm.tipo} onChange={(e) => setEditForm({...editForm, tipo: e.target.value})} className={inputCls} required><option value="1">1- Operador</option><option value="2">2- Engenheiro</option><option value="3">3- Admin</option></select></div>
+          <div className="flex flex-col gap-xs"><label className="font-label-md text-on-surface">Tipo de Conta</label><select value={editForm.tipo} onChange={(e) => setEditForm({...editForm, tipo: e.target.value})} className={inputCls} required><option value="OPERADOR">1- Operador</option><option value="ENGENHEIRO">2- Engenheiro</option><option value="ADMINISTRADOR">3- Admin</option></select></div>
           <div className="flex justify-end gap-sm mt-md">
             <button type="button" onClick={() => setIsEditOpen(false)} className="px-md py-sm rounded text-primary hover:bg-primary-fixed">Cancelar</button>
             <button type="submit" className="px-md py-sm rounded bg-primary text-on-primary hover:opacity-90">Salvar Alterações</button>

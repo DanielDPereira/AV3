@@ -1,26 +1,17 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import Layout from '../../components/Layout';
 import Modal from '../../components/Modal';
+import api from '../../services/api';
 import { type DashboardAircraft, type DashboardStats } from '../../types/dashboard';
 
 const inputCls = "px-sm py-xs border border-outline-variant rounded-lg bg-surface-container-lowest text-on-surface focus:border-primary focus:ring-2 focus:ring-primary-fixed-dim focus:outline-none w-full transition-all";
 const btnPrimaryCls = "flex-1 sm:flex-none bg-primary text-on-primary px-lg py-sm rounded-lg font-label-md text-label-md flex items-center justify-center gap-xs shadow-md hover:bg-primary-container hover:text-on-primary-container transition-all active:scale-[0.98]";
 const btnSecondaryCls = "flex-1 sm:flex-none bg-surface-container-lowest border border-outline text-on-surface font-label-md text-label-md px-lg py-sm rounded-lg hover:shadow-md transition-all flex items-center justify-center gap-xs active:scale-[0.98]";
 
-const mockStats: DashboardStats = {
-  aircrafts: 142,
-  parts: 8934,
-  stages: 56,
-  tests: 1204
-};
-
-const mockAircrafts: DashboardAircraft[] = [
-  { id: '1', identifier: 'AC-X901', model: 'Interceptor V2', currentPhase: 'Montagem Estrutural', status: 'Em Produção' },
-  { id: '2', identifier: 'AC-X902', model: 'Cargo Heavy 500', currentPhase: 'Testes de Aviônicos', status: 'Revisão' },
-  { id: '3', identifier: 'AC-X885', model: 'Interceptor V1', currentPhase: 'Inspeção Final', status: 'Alerta de Qualidade' },
-  { id: '4', identifier: 'AC-X884', model: 'Interceptor V1', currentPhase: 'Entrega', status: 'Concluído' }
-];
+// Fallback para quando a API não está disponível
+const fallbackStats: DashboardStats = { aircrafts: 0, parts: 0, stages: 0, tests: 0 };
+const fallbackAircrafts: DashboardAircraft[] = [];
 
 const getStatusClasses = (status: DashboardAircraft['status']) => {
   switch (status) {
@@ -33,21 +24,99 @@ const getStatusClasses = (status: DashboardAircraft['status']) => {
 };
 
 const Dashboard: React.FC = () => {
-  const [stats] = useState<DashboardStats>(mockStats);
-  const [aircrafts] = useState<DashboardAircraft[]>(mockAircrafts);
+  const [stats, setStats] = useState<DashboardStats>(fallbackStats);
+  const [aircrafts, setAircrafts] = useState<DashboardAircraft[]>(fallbackAircrafts);
+  const [isLoading, setIsLoading] = useState(true);
 
   // States for Modals
   const [isModalAeronaveOpen, setIsModalAeronaveOpen] = useState(false);
   const [isModalPecaOpen, setIsModalPecaOpen] = useState(false);
   const [isModalEtapaOpen, setIsModalEtapaOpen] = useState(false);
 
-  const [novaAeronave, setNovaAeronave] = useState({ codigo: '', modelo: '', capacidade: '', alcance: '', tipo: 'Comercial' });
-  const [novaPeca, setNovaPeca] = useState({ aeronave: '', nome: '', fornecedor: '', tipo: 'Nacional' });
-  const [novaEtapa, setNovaEtapa] = useState({ aeronave: '', nome: '', prazo: '' });
+  const [novaAeronave, setNovaAeronave] = useState({ codigo: '', modelo: '', capacidade: '', alcance: '', tipo: 'COMERCIAL' });
+  const [novaPeca, setNovaPeca] = useState({ aeronaveId: '', nome: '', fornecedor: '', tipo: 'NACIONAL' });
+  const [novaEtapa, setNovaEtapa] = useState({ aeronaveId: '', nome: '', prazo: '' });
+  const [submitLoading, setSubmitLoading] = useState(false);
 
-  const handleCreateAeronave = (e: React.FormEvent) => { e.preventDefault(); setIsModalAeronaveOpen(false); setNovaAeronave({ codigo: '', modelo: '', capacidade: '', alcance: '', tipo: 'Comercial' }); };
-  const handleCreatePeca = (e: React.FormEvent) => { e.preventDefault(); setIsModalPecaOpen(false); setNovaPeca({ aeronave: '', nome: '', fornecedor: '', tipo: 'Nacional' }); };
-  const handleCreateEtapa = (e: React.FormEvent) => { e.preventDefault(); setIsModalEtapaOpen(false); setNovaEtapa({ aeronave: '', nome: '', prazo: '' }); };
+  // ── Buscar dados da API ──────────────────────────────────
+  const fetchData = useCallback(async () => {
+    setIsLoading(true);
+    try {
+      const [statsRes, aircraftsRes] = await Promise.all([
+        api.get('/api/dashboard/stats'),
+        api.get('/api/dashboard/recent-aircrafts'),
+      ]);
+      setStats(statsRes.data);
+      setAircrafts(aircraftsRes.data);
+    } catch (err) {
+      console.warn('Dashboard: API indisponível, usando fallback', err);
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
+
+  useEffect(() => { fetchData(); }, [fetchData]);
+
+  // ── Handlers de criação via API ──────────────────────────
+  const handleCreateAeronave = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSubmitLoading(true);
+    try {
+      await api.post('/api/aeronaves', {
+        codigo: novaAeronave.codigo,
+        modelo: novaAeronave.modelo,
+        tipo: novaAeronave.tipo,
+        capacidade: Number(novaAeronave.capacidade),
+        alcance: Number(novaAeronave.alcance),
+      });
+      setIsModalAeronaveOpen(false);
+      setNovaAeronave({ codigo: '', modelo: '', capacidade: '', alcance: '', tipo: 'COMERCIAL' });
+      fetchData(); // Atualiza dashboard
+    } catch (err) {
+      console.error('Erro ao criar aeronave:', err);
+    } finally {
+      setSubmitLoading(false);
+    }
+  };
+
+  const handleCreatePeca = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSubmitLoading(true);
+    try {
+      await api.post('/api/pecas', {
+        nome: novaPeca.nome,
+        tipo: novaPeca.tipo,
+        fornecedor: novaPeca.fornecedor,
+        aeronaveId: novaPeca.aeronaveId ? Number(novaPeca.aeronaveId) : undefined,
+      });
+      setIsModalPecaOpen(false);
+      setNovaPeca({ aeronaveId: '', nome: '', fornecedor: '', tipo: 'NACIONAL' });
+      fetchData();
+    } catch (err) {
+      console.error('Erro ao criar peça:', err);
+    } finally {
+      setSubmitLoading(false);
+    }
+  };
+
+  const handleCreateEtapa = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSubmitLoading(true);
+    try {
+      await api.post('/api/etapas', {
+        nome: novaEtapa.nome,
+        prazo: novaEtapa.prazo,
+        aeronaveId: Number(novaEtapa.aeronaveId),
+      });
+      setIsModalEtapaOpen(false);
+      setNovaEtapa({ aeronaveId: '', nome: '', prazo: '' });
+      fetchData();
+    } catch (err) {
+      console.error('Erro ao criar etapa:', err);
+    } finally {
+      setSubmitLoading(false);
+    }
+  };
 
   return (
     <Layout>
@@ -81,7 +150,7 @@ const Dashboard: React.FC = () => {
 
             {/* 4 Cards de Resumo */}
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-gutter">
-              <div className="bg-surface-container-lowest border border-outline-variant rounded-xl p-md md:p-lg shadow-sm flex flex-col justify-between h-32 md:h-40">
+              <div className={`bg-surface-container-lowest border border-outline-variant rounded-xl p-md md:p-lg shadow-sm flex flex-col justify-between h-32 md:h-40 ${isLoading ? 'animate-pulse' : ''}`}>
                 <div className="flex justify-between items-start">
                   <span className="font-label-sm text-label-sm text-on-surface-variant uppercase tracking-wider">Aeronaves</span>
                   <div className="w-8 h-8 rounded bg-primary-fixed flex items-center justify-center text-on-primary-fixed">
@@ -91,7 +160,7 @@ const Dashboard: React.FC = () => {
                 <div className="font-h1 text-h2 md:text-h1 text-on-surface">{stats.aircrafts}</div>
               </div>
 
-              <div className="bg-surface-container-lowest border border-outline-variant rounded-xl p-md md:p-lg shadow-sm flex flex-col justify-between h-32 md:h-40">
+              <div className={`bg-surface-container-lowest border border-outline-variant rounded-xl p-md md:p-lg shadow-sm flex flex-col justify-between h-32 md:h-40 ${isLoading ? 'animate-pulse' : ''}`}>
                 <div className="flex justify-between items-start">
                   <span className="font-label-sm text-label-sm text-on-surface-variant uppercase tracking-wider">Peças</span>
                   <div className="w-8 h-8 rounded bg-secondary-fixed flex items-center justify-center text-on-secondary-fixed">
@@ -101,7 +170,7 @@ const Dashboard: React.FC = () => {
                 <div className="font-h1 text-h2 md:text-h1 text-on-surface">{stats.parts.toLocaleString('pt-BR')}</div>
               </div>
 
-              <div className="bg-surface-container-lowest border border-outline-variant rounded-xl p-md md:p-lg shadow-sm flex flex-col justify-between h-32 md:h-40">
+              <div className={`bg-surface-container-lowest border border-outline-variant rounded-xl p-md md:p-lg shadow-sm flex flex-col justify-between h-32 md:h-40 ${isLoading ? 'animate-pulse' : ''}`}>
                 <div className="flex justify-between items-start">
                   <span className="font-label-sm text-label-sm text-on-surface-variant uppercase tracking-wider">Etapas</span>
                   <div className="w-8 h-8 rounded bg-tertiary-fixed flex items-center justify-center text-on-tertiary-fixed">
@@ -111,7 +180,7 @@ const Dashboard: React.FC = () => {
                 <div className="font-h1 text-h2 md:text-h1 text-on-surface">{stats.stages}</div>
               </div>
 
-              <div className="bg-surface-container-lowest border border-outline-variant rounded-xl p-md md:p-lg shadow-sm flex flex-col justify-between h-32 md:h-40">
+              <div className={`bg-surface-container-lowest border border-outline-variant rounded-xl p-md md:p-lg shadow-sm flex flex-col justify-between h-32 md:h-40 ${isLoading ? 'animate-pulse' : ''}`}>
                 <div className="flex justify-between items-start">
                   <span className="font-label-sm text-label-sm text-on-surface-variant uppercase tracking-wider">Testes</span>
                   <div className="w-8 h-8 rounded bg-surface-variant flex items-center justify-center text-on-surface-variant">
@@ -130,30 +199,42 @@ const Dashboard: React.FC = () => {
               </div>
               
               <div className="overflow-x-auto">
-                <table className="w-full text-left border-collapse min-w-[600px] md:min-w-0">
-                  <thead>
-                    <tr className="bg-surface-container-low border-b border-outline-variant font-label-sm text-label-sm text-on-surface-variant">
-                      <th className="px-md md:px-lg py-sm font-semibold">Identificador</th>
-                      <th className="px-md md:px-lg py-sm font-semibold">Modelo</th>
-                      <th className="px-md md:px-lg py-sm font-semibold hidden sm:table-cell">Fase Atual</th>
-                      <th className="px-md md:px-lg py-sm font-semibold">Status</th>
-                    </tr>
-                  </thead>
-                  <tbody className="font-body-sm text-body-sm text-on-surface">
-                    {aircrafts.map(aircraft => (
-                      <tr key={aircraft.id} className="border-b border-outline-variant hover:bg-surface-container-low transition-colors">
-                        <td className="px-md md:px-lg py-md font-code">{aircraft.identifier}</td>
-                        <td className="px-md md:px-lg py-md">{aircraft.model}</td>
-                        <td className="px-md md:px-lg py-md hidden sm:table-cell">{aircraft.currentPhase}</td>
-                        <td className="px-md md:px-lg py-md">
-                          <span className={`inline-flex items-center px-2 py-1 rounded font-label-sm text-label-sm ${getStatusClasses(aircraft.status)}`}>
-                            {aircraft.status}
-                          </span>
-                        </td>
+                {isLoading ? (
+                  <div className="p-xl flex items-center justify-center gap-sm text-on-surface-variant">
+                    <span className="material-symbols-outlined animate-spin">progress_activity</span>
+                    Carregando...
+                  </div>
+                ) : aircrafts.length === 0 ? (
+                  <div className="p-xl text-center text-on-surface-variant font-body-sm">
+                    <span className="material-symbols-outlined text-[48px] block mb-sm opacity-30">flight</span>
+                    Nenhuma aeronave cadastrada ainda.
+                  </div>
+                ) : (
+                  <table className="w-full text-left border-collapse min-w-[600px] md:min-w-0">
+                    <thead>
+                      <tr className="bg-surface-container-low border-b border-outline-variant font-label-sm text-label-sm text-on-surface-variant">
+                        <th className="px-md md:px-lg py-sm font-semibold">Identificador</th>
+                        <th className="px-md md:px-lg py-sm font-semibold">Modelo</th>
+                        <th className="px-md md:px-lg py-sm font-semibold hidden sm:table-cell">Fase Atual</th>
+                        <th className="px-md md:px-lg py-sm font-semibold">Status</th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
+                    </thead>
+                    <tbody className="font-body-sm text-body-sm text-on-surface">
+                      {aircrafts.map(aircraft => (
+                        <tr key={aircraft.id} className="border-b border-outline-variant hover:bg-surface-container-low transition-colors">
+                          <td className="px-md md:px-lg py-md font-code">{aircraft.identifier}</td>
+                          <td className="px-md md:px-lg py-md">{aircraft.model}</td>
+                          <td className="px-md md:px-lg py-md hidden sm:table-cell">{aircraft.currentPhase}</td>
+                          <td className="px-md md:px-lg py-md">
+                            <span className={`inline-flex items-center px-2 py-1 rounded font-label-sm text-label-sm ${getStatusClasses(aircraft.status)}`}>
+                              {aircraft.status}
+                            </span>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                )}
               </div>
             </div>
         </div>
@@ -180,13 +261,15 @@ const Dashboard: React.FC = () => {
           <div className="flex flex-col gap-xs">
             <label className="font-label-md text-on-surface">Tipo</label>
             <select value={novaAeronave.tipo} onChange={(e) => setNovaAeronave({...novaAeronave, tipo: e.target.value})} className={inputCls} required>
-              <option value="Comercial">1- Comercial</option>
-              <option value="Militar">2- Militar</option>
+              <option value="COMERCIAL">1- Comercial</option>
+              <option value="MILITAR">2- Militar</option>
             </select>
           </div>
           <div className="flex justify-end gap-sm mt-md">
             <button type="button" onClick={() => setIsModalAeronaveOpen(false)} className="px-md py-sm rounded text-primary hover:bg-primary-fixed-dim/20">Cancelar</button>
-            <button type="submit" className="px-md py-sm rounded bg-primary text-on-primary hover:opacity-90">Cadastrar</button>
+            <button type="submit" disabled={submitLoading} className="px-md py-sm rounded bg-primary text-on-primary hover:opacity-90 disabled:opacity-60">
+              {submitLoading ? 'Cadastrando...' : 'Cadastrar'}
+            </button>
           </div>
         </form>
       </Modal>
@@ -194,8 +277,8 @@ const Dashboard: React.FC = () => {
       <Modal isOpen={isModalPecaOpen} onClose={() => setIsModalPecaOpen(false)} title="Adicionar Peça a uma Aeronave">
         <form className="flex flex-col gap-md" onSubmit={handleCreatePeca}>
           <div className="flex flex-col gap-xs">
-            <label className="font-label-md text-on-surface">Código da Aeronave alvo</label>
-            <input type="text" value={novaPeca.aeronave} onChange={(e) => setNovaPeca({...novaPeca, aeronave: e.target.value})} className={inputCls} required />
+            <label className="font-label-md text-on-surface">ID da Aeronave alvo</label>
+            <input type="number" value={novaPeca.aeronaveId} onChange={(e) => setNovaPeca({...novaPeca, aeronaveId: e.target.value})} className={inputCls} placeholder="Opcional" />
           </div>
           <div className="flex flex-col gap-xs">
             <label className="font-label-md text-on-surface">Nome do componente</label>
@@ -208,13 +291,15 @@ const Dashboard: React.FC = () => {
           <div className="flex flex-col gap-xs">
             <label className="font-label-md text-on-surface">Origem</label>
             <select value={novaPeca.tipo} onChange={(e) => setNovaPeca({...novaPeca, tipo: e.target.value})} className={inputCls} required>
-              <option value="Nacional">1- Nacional</option>
-              <option value="Importada">2- Importada</option>
+              <option value="NACIONAL">1- Nacional</option>
+              <option value="IMPORTADA">2- Importada</option>
             </select>
           </div>
           <div className="flex justify-end gap-sm mt-md">
             <button type="button" onClick={() => setIsModalPecaOpen(false)} className="px-md py-sm rounded text-primary hover:bg-primary-fixed-dim/20">Cancelar</button>
-            <button type="submit" className="px-md py-sm rounded bg-primary text-on-primary hover:opacity-90">Cadastrar</button>
+            <button type="submit" disabled={submitLoading} className="px-md py-sm rounded bg-primary text-on-primary hover:opacity-90 disabled:opacity-60">
+              {submitLoading ? 'Cadastrando...' : 'Cadastrar'}
+            </button>
           </div>
         </form>
       </Modal>
@@ -222,8 +307,8 @@ const Dashboard: React.FC = () => {
       <Modal isOpen={isModalEtapaOpen} onClose={() => setIsModalEtapaOpen(false)} title="Nova Etapa">
         <form className="flex flex-col gap-md" onSubmit={handleCreateEtapa}>
           <div className="flex flex-col gap-xs">
-            <label className="font-label-md text-on-surface">Código Aeronave</label>
-            <input type="text" value={novaEtapa.aeronave} onChange={(e) => setNovaEtapa({...novaEtapa, aeronave: e.target.value})} className={inputCls} required />
+            <label className="font-label-md text-on-surface">ID da Aeronave</label>
+            <input type="number" value={novaEtapa.aeronaveId} onChange={(e) => setNovaEtapa({...novaEtapa, aeronaveId: e.target.value})} className={inputCls} required />
           </div>
           <div className="flex flex-col gap-xs">
             <label className="font-label-md text-on-surface">Nome da etapa</label>
@@ -235,7 +320,9 @@ const Dashboard: React.FC = () => {
           </div>
           <div className="flex justify-end gap-sm mt-md">
             <button type="button" onClick={() => setIsModalEtapaOpen(false)} className="px-md py-sm rounded text-primary hover:bg-primary-fixed-dim/20">Cancelar</button>
-            <button type="submit" className="px-md py-sm rounded bg-primary text-on-primary hover:opacity-90">Criar</button>
+            <button type="submit" disabled={submitLoading} className="px-md py-sm rounded bg-primary text-on-primary hover:opacity-90 disabled:opacity-60">
+              {submitLoading ? 'Criando...' : 'Criar'}
+            </button>
           </div>
         </form>
       </Modal>

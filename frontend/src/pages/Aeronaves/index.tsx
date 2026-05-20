@@ -1,10 +1,21 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 
 import Layout from '../../components/Layout';
 import Modal from '../../components/Modal';
 import Tooltip from '../../components/Tooltip';
-import { type Aeronave, mockAeronaves } from '../../types/aeronaves';
+import api from '../../services/api';
+
+// Interface local alinhada com o retorno da API
+interface AeronaveAPI {
+  id: number;
+  codigo: string;
+  modelo: string;
+  tipo: 'COMERCIAL' | 'MILITAR';
+  capacidade: number;
+  alcance: number;
+  _count?: { pecas: number; etapas: number; testes: number };
+}
 
 const inputCls = "px-sm py-xs border border-outline-variant rounded-lg bg-surface-container-lowest text-on-surface focus:border-primary focus:ring-2 focus:ring-primary-fixed-dim focus:outline-none w-full transition-all";
 const btnPrimaryCls = "w-full md:w-auto bg-primary text-on-primary px-lg py-sm rounded-lg font-label-md text-label-md flex items-center justify-center gap-xs shadow-md hover:bg-primary-container hover:text-on-primary-container transition-all active:scale-[0.98]";
@@ -16,77 +27,119 @@ const actionBtnEditCls = `${actionBtnBaseCls} text-on-surface-variant hover:text
 const actionBtnDeleteCls = `${actionBtnBaseCls} text-on-surface-variant hover:text-error hover:bg-error-container/30`;
 const actionBtnViewCls = `${actionBtnBaseCls} text-on-surface-variant hover:text-primary hover:bg-primary-fixed-dim/20`;
 
+const getTipoBadge = (tipo: string) => tipo === 'COMERCIAL'
+  ? 'bg-secondary-fixed text-on-secondary-fixed'
+  : 'bg-tertiary-fixed text-on-tertiary-fixed';
+
+const getTipoLabel = (tipo: string) => tipo === 'COMERCIAL' ? 'Comercial' : 'Militar';
+
 const Aeronaves: React.FC = () => {
   const navigate = useNavigate();
-  const [aeronaves, setAeronaves] = useState<Aeronave[]>(mockAeronaves);
+  const [aeronaves, setAeronaves] = useState<AeronaveAPI[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [submitLoading, setSubmitLoading] = useState(false);
+  
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [novaAeronave, setNovaAeronave] = useState({ codigo: '', modelo: '', tipo: 'Comercial', capacidade: '', alcance: '' });
+  const [novaAeronave, setNovaAeronave] = useState({ codigo: '', modelo: '', tipo: 'COMERCIAL', capacidade: '', alcance: '' });
 
   // Edit state
   const [isEditOpen, setIsEditOpen] = useState(false);
-  const [editTarget, setEditTarget] = useState<Aeronave | null>(null);
-  const [editForm, setEditForm] = useState({ codigo: '', modelo: '', tipo: 'Comercial', capacidade: '', alcance: '' });
+  const [editTarget, setEditTarget] = useState<AeronaveAPI | null>(null);
+  const [editForm, setEditForm] = useState({ codigo: '', modelo: '', tipo: 'COMERCIAL', capacidade: '', alcance: '' });
 
   // Delete state
   const [isDeleteOpen, setIsDeleteOpen] = useState(false);
-  const [deleteTarget, setDeleteTarget] = useState<Aeronave | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<AeronaveAPI | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [isFilterOpen, setIsFilterOpen] = useState(false);
   const [filters, setFilters] = useState({ tipo: 'Todos', minCapacidade: '' });
 
+  // ── Buscar dados da API ──────────────────────────────────
+  const fetchAeronaves = useCallback(async () => {
+    setIsLoading(true);
+    try {
+      const res = await api.get('/api/aeronaves');
+      setAeronaves(res.data);
+    } catch (err) {
+      console.error('Erro ao buscar aeronaves:', err);
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
+
+  useEffect(() => { fetchAeronaves(); }, [fetchAeronaves]);
+
+  // ── Filtros client-side ──────────────────────────────────
   const filteredAeronaves = aeronaves.filter(aero => {
     const matchesSearch = aero.codigo.toLowerCase().includes(searchTerm.toLowerCase()) ||
                          aero.modelo.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesTipo = filters.tipo === 'Todos' || aero.tipo === filters.tipo;
+    const matchesTipo = filters.tipo === 'Todos' || aero.tipo === filters.tipo.toUpperCase();
     const matchesCapacidade = !filters.minCapacidade || aero.capacidade >= Number(filters.minCapacidade);
     return matchesSearch && matchesTipo && matchesCapacidade;
   });
 
-  const handleCreate = (e: React.FormEvent) => {
+  // ── CRUD Handlers ────────────────────────────────────────
+  const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
-    const aero: Aeronave = {
-      id: Math.random().toString(),
-      codigo: novaAeronave.codigo,
-      modelo: novaAeronave.modelo,
-      tipo: novaAeronave.tipo as 'Comercial' | 'Militar',
-      capacidade: Number(novaAeronave.capacidade),
-      alcance: Number(novaAeronave.alcance),
-      tipoBadgeColor: novaAeronave.tipo === 'Comercial' ? 'bg-secondary-fixed text-on-secondary-fixed' : 'bg-tertiary-fixed text-on-tertiary-fixed',
-    };
-    setAeronaves([aero, ...aeronaves]);
-    setIsModalOpen(false);
-    setNovaAeronave({ codigo: '', modelo: '', tipo: 'Comercial', capacidade: '', alcance: '' });
+    setSubmitLoading(true);
+    try {
+      await api.post('/api/aeronaves', {
+        codigo: novaAeronave.codigo,
+        modelo: novaAeronave.modelo,
+        tipo: novaAeronave.tipo,
+        capacidade: Number(novaAeronave.capacidade),
+        alcance: Number(novaAeronave.alcance),
+      });
+      setIsModalOpen(false);
+      setNovaAeronave({ codigo: '', modelo: '', tipo: 'COMERCIAL', capacidade: '', alcance: '' });
+      fetchAeronaves();
+    } catch (err) {
+      console.error('Erro ao criar aeronave:', err);
+    } finally {
+      setSubmitLoading(false);
+    }
   };
 
-  const openEdit = (a: Aeronave) => {
+  const openEdit = (a: AeronaveAPI) => {
     setEditTarget(a);
     setEditForm({ codigo: a.codigo, modelo: a.modelo, tipo: a.tipo, capacidade: String(a.capacidade), alcance: String(a.alcance) });
     setIsEditOpen(true);
   };
-  const handleEdit = (e: React.FormEvent) => {
+
+  const handleEdit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!editTarget) return;
-    setAeronaves(aeronaves.map(a =>
-      a.id === editTarget.id
-        ? {
-            ...a,
-            codigo: editForm.codigo,
-            modelo: editForm.modelo,
-            tipo: editForm.tipo as 'Comercial' | 'Militar',
-            capacidade: Number(editForm.capacidade),
-            alcance: Number(editForm.alcance),
-            tipoBadgeColor: editForm.tipo === 'Comercial' ? 'bg-secondary-fixed text-on-secondary-fixed' : 'bg-tertiary-fixed text-on-tertiary-fixed',
-          }
-        : a
-    ));
-    setIsEditOpen(false);
+    setSubmitLoading(true);
+    try {
+      await api.put(`/api/aeronaves/${editTarget.id}`, {
+        codigo: editForm.codigo,
+        modelo: editForm.modelo,
+        tipo: editForm.tipo,
+        capacidade: Number(editForm.capacidade),
+        alcance: Number(editForm.alcance),
+      });
+      setIsEditOpen(false);
+      fetchAeronaves();
+    } catch (err) {
+      console.error('Erro ao editar aeronave:', err);
+    } finally {
+      setSubmitLoading(false);
+    }
   };
 
-  const openDelete = (a: Aeronave) => { setDeleteTarget(a); setIsDeleteOpen(true); };
-  const handleDelete = () => {
+  const openDelete = (a: AeronaveAPI) => { setDeleteTarget(a); setIsDeleteOpen(true); };
+  const handleDelete = async () => {
     if (!deleteTarget) return;
-    setAeronaves(aeronaves.filter(a => a.id !== deleteTarget.id));
-    setIsDeleteOpen(false);
+    setSubmitLoading(true);
+    try {
+      await api.delete(`/api/aeronaves/${deleteTarget.id}`);
+      setIsDeleteOpen(false);
+      fetchAeronaves();
+    } catch (err) {
+      console.error('Erro ao excluir aeronave:', err);
+    } finally {
+      setSubmitLoading(false);
+    }
   };
 
   return (
@@ -105,13 +158,7 @@ const Aeronaves: React.FC = () => {
           <div className="flex flex-col md:flex-row items-center gap-md w-full sm:w-auto">
             <div className="relative w-full md:w-[300px]">
               <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-outline text-[20px]">search</span>
-              <input
-                className={searchInputCls}
-                placeholder="Buscar aeronave..."
-                type="text"
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-              />
+              <input className={searchInputCls} placeholder="Buscar aeronave..." type="text" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
             </div>
             <button 
               onClick={() => setIsFilterOpen(true)}
@@ -119,9 +166,7 @@ const Aeronaves: React.FC = () => {
               <span className="material-symbols-outlined text-[18px]">filter_list</span>
               Filtros { (filters.tipo !== 'Todos' || filters.minCapacidade !== '') && '•'}
             </button>
-            <button
-              onClick={() => setIsModalOpen(true)}
-              className={btnPrimaryCls}>
+            <button onClick={() => setIsModalOpen(true)} className={btnPrimaryCls}>
               <span className="material-symbols-outlined text-[18px]">add</span>
               Nova Aeronave
             </button>
@@ -134,94 +179,81 @@ const Aeronaves: React.FC = () => {
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 md:gap-md">
             <div className="bg-surface-container-lowest border border-outline-variant rounded-xl p-md shadow-sm relative overflow-hidden h-24 md:h-auto flex flex-col justify-center md:justify-start">
               <div className="font-label-md text-label-md text-on-surface-variant mb-xs">Total Registrado</div>
-              <div className="font-h2 text-h2 text-on-surface">142</div>
+              <div className="font-h2 text-h2 text-on-surface">{aeronaves.length}</div>
               <div className="absolute -right-2 -bottom-2 opacity-5 hidden md:block">
                 <span className="material-symbols-outlined text-[80px]">flight</span>
               </div>
             </div>
             <div className="bg-surface-container-lowest border border-outline-variant rounded-xl p-md shadow-sm h-24 md:h-auto flex flex-col justify-center md:justify-start">
-              <div className="font-label-md text-label-md text-on-surface-variant mb-xs">Em Produção</div>
-              <div className="font-h2 text-h2 text-primary-container">18</div>
+              <div className="font-label-md text-label-md text-on-surface-variant mb-xs">Comerciais</div>
+              <div className="font-h2 text-h2 text-primary-container">{aeronaves.filter(a => a.tipo === 'COMERCIAL').length}</div>
             </div>
             <div className="bg-surface-container-lowest border border-outline-variant rounded-xl p-md shadow-sm h-24 md:h-auto flex flex-col justify-center md:justify-start">
-              <div className="font-label-md text-label-md text-on-surface-variant mb-xs">Aguardando Testes</div>
-              <div className="font-h2 text-h2 text-tertiary-container">05</div>
+              <div className="font-label-md text-label-md text-on-surface-variant mb-xs">Militares</div>
+              <div className="font-h2 text-h2 text-tertiary-container">{aeronaves.filter(a => a.tipo === 'MILITAR').length}</div>
             </div>
           </div>
 
           {/* Data Table Container */}
           <div className="bg-surface-container-lowest border border-outline-variant rounded-xl shadow-sm overflow-hidden flex flex-col flex-1">
             <div className="overflow-x-auto">
-              <table className="w-full text-left border-collapse min-w-[700px] md:min-w-0">
-                <thead>
-                  <tr className="bg-surface-container-low">
-                    <th className={tableHeaderCls}>Código</th>
-                    <th className={tableHeaderCls}>Modelo</th>
-                    <th className={tableHeaderCls}>Tipo</th>
-                    <th className={`${tableHeaderCls} hidden sm:table-cell`}>Capacidade</th>
-                    <th className={`${tableHeaderCls} hidden lg:table-cell`}>Alcance</th>
-                    <th className={`${tableHeaderCls} text-right`}>Ações</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-outline-variant/50">
-                  {filteredAeronaves.map((aero) => (
-                    <tr key={aero.id} className="hover:bg-surface-container transition-colors group">
-                      <td className="py-md px-lg font-code text-code text-on-surface font-semibold">{aero.codigo}</td>
-                      <td className="py-md px-lg font-body-sm text-body-sm text-on-surface">{aero.modelo}</td>
-                      <td className="py-md px-lg">
-                        <span className={`inline-flex items-center px-2 py-1 rounded-sm font-label-sm text-label-sm ${aero.tipoBadgeColor}`}>
-                          {aero.tipo}
-                        </span>
-                      </td>
-                      <td className="py-md px-lg font-body-sm text-body-sm text-on-surface-variant hidden sm:table-cell">{aero.capacidade} passageiros</td>
-                      <td className="py-md px-lg font-body-sm text-body-sm text-on-surface-variant hidden lg:table-cell">{aero.alcance} km</td>
-                      <td className="py-md px-lg text-right">
-                        <div className="flex items-center justify-end gap-xs lg:opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 transition-opacity">
-                          <Tooltip label="Ver Etapas">
-                            <button
-                              aria-label={`Ver etapas de ${aero.codigo}`}
-                              className={actionBtnViewCls}
-                              onClick={() => navigate(`/etapas?search=${aero.codigo}`)}
-                            >
-                              <span aria-hidden="true" className="material-symbols-outlined text-[20px]">assignment</span>
-                            </button>
-                          </Tooltip>
-                          <Tooltip label="Editar">
-                            <button
-                              aria-label={`Editar ${aero.codigo}`}
-                              className={actionBtnEditCls}
-                              onClick={() => openEdit(aero)}
-                            >
-                              <span aria-hidden="true" className="material-symbols-outlined text-[20px]">edit</span>
-                            </button>
-                          </Tooltip>
-                          <Tooltip label="Excluir">
-                            <button
-                              aria-label={`Excluir ${aero.codigo}`}
-                              className={actionBtnDeleteCls}
-                              onClick={() => openDelete(aero)}
-                            >
-                              <span aria-hidden="true" className="material-symbols-outlined text-[20px]">delete</span>
-                            </button>
-                          </Tooltip>
-                        </div>
-                      </td>
+              {isLoading ? (
+                <div className="p-xl flex items-center justify-center gap-sm text-on-surface-variant">
+                  <span className="material-symbols-outlined animate-spin">progress_activity</span>
+                  Carregando aeronaves...
+                </div>
+              ) : (
+                <table className="w-full text-left border-collapse min-w-[700px] md:min-w-0">
+                  <thead>
+                    <tr className="bg-surface-container-low">
+                      <th className={tableHeaderCls}>Código</th>
+                      <th className={tableHeaderCls}>Modelo</th>
+                      <th className={tableHeaderCls}>Tipo</th>
+                      <th className={`${tableHeaderCls} hidden sm:table-cell`}>Capacidade</th>
+                      <th className={`${tableHeaderCls} hidden lg:table-cell`}>Alcance</th>
+                      <th className={`${tableHeaderCls} text-right`}>Ações</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody className="divide-y divide-outline-variant/50">
+                    {filteredAeronaves.map((aero) => (
+                      <tr key={aero.id} className="hover:bg-surface-container transition-colors group">
+                        <td className="py-md px-lg font-code text-code text-on-surface font-semibold">{aero.codigo}</td>
+                        <td className="py-md px-lg font-body-sm text-body-sm text-on-surface">{aero.modelo}</td>
+                        <td className="py-md px-lg">
+                          <span className={`inline-flex items-center px-2 py-1 rounded-sm font-label-sm text-label-sm ${getTipoBadge(aero.tipo)}`}>
+                            {getTipoLabel(aero.tipo)}
+                          </span>
+                        </td>
+                        <td className="py-md px-lg font-body-sm text-body-sm text-on-surface-variant hidden sm:table-cell">{aero.capacidade} passageiros</td>
+                        <td className="py-md px-lg font-body-sm text-body-sm text-on-surface-variant hidden lg:table-cell">{aero.alcance} km</td>
+                        <td className="py-md px-lg text-right">
+                          <div className="flex items-center justify-end gap-xs lg:opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 transition-opacity">
+                            <Tooltip label="Ver Etapas">
+                              <button aria-label={`Ver etapas de ${aero.codigo}`} className={actionBtnViewCls} onClick={() => navigate(`/etapas?search=${aero.codigo}`)}>
+                                <span aria-hidden="true" className="material-symbols-outlined text-[20px]">assignment</span>
+                              </button>
+                            </Tooltip>
+                            <Tooltip label="Editar">
+                              <button aria-label={`Editar ${aero.codigo}`} className={actionBtnEditCls} onClick={() => openEdit(aero)}>
+                                <span aria-hidden="true" className="material-symbols-outlined text-[20px]">edit</span>
+                              </button>
+                            </Tooltip>
+                            <Tooltip label="Excluir">
+                              <button aria-label={`Excluir ${aero.codigo}`} className={actionBtnDeleteCls} onClick={() => openDelete(aero)}>
+                                <span aria-hidden="true" className="material-symbols-outlined text-[20px]">delete</span>
+                              </button>
+                            </Tooltip>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
             </div>
-            {/* Table Footer / Pagination */}
+            {/* Table Footer */}
             <div className="px-lg py-sm border-t border-outline-variant bg-surface-container-low flex flex-col sm:flex-row items-center justify-between mt-auto gap-md">
-              <span className="font-body-sm text-body-sm text-on-surface-variant text-center sm:text-left">Mostrando 1 a {filteredAeronaves.length} de {filteredAeronaves.length} aeronaves</span>
-              <div className="flex items-center gap-xs">
-                <button className="p-1 rounded-lg border border-outline-variant text-on-surface-variant hover:bg-surface-container disabled:opacity-50 transition-colors" disabled>
-                  <span className="material-symbols-outlined text-[20px]">chevron_left</span>
-                </button>
-                <button className="p-1 rounded-lg border border-outline-variant text-on-surface-variant hover:bg-surface-container transition-colors">
-                  <span className="material-symbols-outlined text-[20px]">chevron_right</span>
-                </button>
-              </div>
+              <span className="font-body-sm text-body-sm text-on-surface-variant text-center sm:text-left">Mostrando {filteredAeronaves.length} de {aeronaves.length} aeronaves</span>
             </div>
           </div>
         </div>
@@ -249,13 +281,15 @@ const Aeronaves: React.FC = () => {
           <div className="flex flex-col gap-xs">
             <label className="font-label-md text-on-surface">Tipo</label>
             <select value={novaAeronave.tipo} onChange={(e) => setNovaAeronave({ ...novaAeronave, tipo: e.target.value })} className={inputCls} required>
-              <option value="Comercial">1- Comercial</option>
-              <option value="Militar">2- Militar</option>
+              <option value="COMERCIAL">1- Comercial</option>
+              <option value="MILITAR">2- Militar</option>
             </select>
           </div>
           <div className="flex justify-end gap-sm mt-md">
             <button type="button" onClick={() => setIsModalOpen(false)} className="px-md py-sm rounded text-primary hover:bg-primary-fixed">Cancelar</button>
-            <button type="submit" className="px-md py-sm rounded bg-primary text-on-primary hover:opacity-90">Cadastrar</button>
+            <button type="submit" disabled={submitLoading} className="px-md py-sm rounded bg-primary text-on-primary hover:opacity-90 disabled:opacity-60">
+              {submitLoading ? 'Cadastrando...' : 'Cadastrar'}
+            </button>
           </div>
         </form>
       </Modal>
@@ -282,13 +316,15 @@ const Aeronaves: React.FC = () => {
           <div className="flex flex-col gap-xs">
             <label className="font-label-md text-on-surface">Tipo</label>
             <select value={editForm.tipo} onChange={(e) => setEditForm({ ...editForm, tipo: e.target.value })} className={inputCls} required>
-              <option value="Comercial">1- Comercial</option>
-              <option value="Militar">2- Militar</option>
+              <option value="COMERCIAL">1- Comercial</option>
+              <option value="MILITAR">2- Militar</option>
             </select>
           </div>
           <div className="flex justify-end gap-sm mt-md">
             <button type="button" onClick={() => setIsEditOpen(false)} className="px-md py-sm rounded text-primary hover:bg-primary-fixed">Cancelar</button>
-            <button type="submit" className="px-md py-sm rounded bg-primary text-on-primary hover:opacity-90">Salvar Alterações</button>
+            <button type="submit" disabled={submitLoading} className="px-md py-sm rounded bg-primary text-on-primary hover:opacity-90 disabled:opacity-60">
+              {submitLoading ? 'Salvando...' : 'Salvar Alterações'}
+            </button>
           </div>
         </form>
       </Modal>
@@ -306,7 +342,9 @@ const Aeronaves: React.FC = () => {
           </div>
           <div className="flex justify-end gap-sm">
             <button type="button" onClick={() => setIsDeleteOpen(false)} className="px-md py-sm rounded text-primary hover:bg-primary-fixed">Cancelar</button>
-            <button type="button" onClick={handleDelete} className="px-md py-sm rounded bg-error text-on-error hover:opacity-90">Excluir</button>
+            <button type="button" onClick={handleDelete} disabled={submitLoading} className="px-md py-sm rounded bg-error text-on-error hover:opacity-90 disabled:opacity-60">
+              {submitLoading ? 'Excluindo...' : 'Excluir'}
+            </button>
           </div>
         </div>
       </Modal>
@@ -334,9 +372,7 @@ const Aeronaves: React.FC = () => {
             <div className="relative">
               <span className="material-symbols-outlined absolute left-sm top-1/2 -translate-y-1/2 text-outline">group</span>
               <input 
-                type="number" 
-                placeholder="Ex: 100" 
-                value={filters.minCapacidade}
+                type="number" placeholder="Ex: 100" value={filters.minCapacidade}
                 onChange={(e) => setFilters({ ...filters, minCapacidade: e.target.value })}
                 className="w-full pl-[40px] pr-md py-sm border border-outline-variant rounded-lg bg-surface-container-lowest text-on-surface focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-all"
               />

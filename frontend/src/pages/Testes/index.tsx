@@ -1,9 +1,17 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 
 import Layout from '../../components/Layout';
 import Modal from '../../components/Modal';
 import Tooltip from '../../components/Tooltip';
-import { type Teste, mockTestes } from '../../types/testes';
+import api from '../../services/api';
+
+interface TesteAPI {
+  id: number;
+  tipo: 'ELETRICO' | 'HIDRAULICO' | 'AERODINAMICO';
+  resultado: 'APROVADO' | 'REPROVADO';
+  aeronaveId: number;
+  aeronave?: { codigo: string };
+}
 
 const inputCls = "px-sm py-xs border border-outline-variant rounded-lg bg-surface-container-lowest text-on-surface focus:border-primary focus:ring-2 focus:ring-primary-fixed-dim focus:outline-none w-full transition-all";
 const btnPrimaryCls = "w-full md:w-auto bg-primary text-on-primary px-lg py-sm rounded-lg font-label-md text-label-md flex items-center justify-center gap-xs shadow-md hover:bg-primary-container hover:text-on-primary-container transition-all active:scale-[0.98]";
@@ -16,92 +24,79 @@ const actionBtnDeleteCls = `${actionBtnBaseCls} text-on-surface-variant hover:te
 const actionBtnViewCls = `${actionBtnBaseCls} text-on-surface-variant hover:text-primary hover:bg-primary-fixed-dim/20`;
 const actionBtnCheckCls = `${actionBtnBaseCls} text-on-surface-variant hover:text-primary hover:bg-primary-fixed-dim/20`;
 
-const resultadoMap = (val: string): { resultado: Teste['resultado']; variant: string } =>
-  val === 's'
-    ? { resultado: 'Aprovado', variant: 'bg-green-100 text-green-800 border-green-200' }
-    : { resultado: 'Reprovado', variant: 'bg-red-100 text-red-800 border-red-200' };
-
-const tipoMap: Record<string, Teste['tipo']> = {
-  '1': 'Elétrico',
-  '2': 'Hidráulico',
-  '3': 'Aerodinâmico',
+const resultadoVariants: Record<string, string> = {
+  APROVADO: 'bg-green-100 text-green-800 border-green-200',
+  REPROVADO: 'bg-red-100 text-red-800 border-red-200',
 };
-const tipoToKey = (tipo: string) =>
-  tipo === 'Hidráulico' ? '2' : tipo === 'Aerodinâmico' ? '3' : '1';
+const resultadoLabels: Record<string, string> = { APROVADO: 'Aprovado', REPROVADO: 'Reprovado' };
+const tipoLabels: Record<string, string> = { ELETRICO: 'Elétrico', HIDRAULICO: 'Hidráulico', AERODINAMICO: 'Aerodinâmico' };
 
 const Testes: React.FC = () => {
-  const [testes, setTestes] = useState<Teste[]>(mockTestes);
+  const [testes, setTestes] = useState<TesteAPI[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [submitLoading, setSubmitLoading] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [novoTeste, setNovoTeste] = useState({ aeronave: '', tipo: '1', resultado: 's' });
-
-  // Edit state
+  const [novoTeste, setNovoTeste] = useState({ aeronaveId: '', tipo: 'ELETRICO', resultado: 'APROVADO' });
   const [isEditOpen, setIsEditOpen] = useState(false);
-  const [editTarget, setEditTarget] = useState<Teste | null>(null);
-  const [editForm, setEditForm] = useState({ aeronave: '', tipo: '1', resultado: 's' });
-
-  // Approve/reject state
+  const [editTarget, setEditTarget] = useState<TesteAPI | null>(null);
+  const [editForm, setEditForm] = useState({ aeronaveId: '', tipo: 'ELETRICO', resultado: 'APROVADO' });
   const [isResultOpen, setIsResultOpen] = useState(false);
-  const [resultTarget, setResultTarget] = useState<Teste | null>(null);
-  const [resultVal, setResultVal] = useState<'s' | 'n'>('s');
+  const [resultTarget, setResultTarget] = useState<TesteAPI | null>(null);
+  const [resultVal, setResultVal] = useState<'APROVADO' | 'REPROVADO'>('APROVADO');
   const [searchTerm, setSearchTerm] = useState('');
   const [isFilterOpen, setIsFilterOpen] = useState(false);
   const [filters, setFilters] = useState({ tipo: 'Todos', resultado: 'Todos', aeronave: 'Todas' });
 
-  const uniqueAeronaves = Array.from(new Set(testes.filter(t => t.aeronave).map(t => t.aeronave!)));
+  const fetchTestes = useCallback(async () => {
+    setIsLoading(true);
+    try { const res = await api.get('/api/testes'); setTestes(res.data); } catch (err) { console.error('Erro ao buscar testes:', err); } finally { setIsLoading(false); }
+  }, []);
+  useEffect(() => { fetchTestes(); }, [fetchTestes]);
+
+  const uniqueAeronaves = Array.from(new Set(testes.filter(t => t.aeronave).map(t => t.aeronave!.codigo)));
 
   const filteredTestes = testes.filter(teste => {
-    const matchesSearch = (teste.aeronave && teste.aeronave.toLowerCase().includes(searchTerm.toLowerCase())) ||
-                         teste.tipo.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesTipo = filters.tipo === 'Todos' || teste.tipo === filters.tipo;
-    const matchesResultado = filters.resultado === 'Todos' || teste.resultado === filters.resultado;
-    const matchesAeronave = filters.aeronave === 'Todas' || teste.aeronave === filters.aeronave;
+    const aeroCode = teste.aeronave?.codigo || '';
+    const matchesSearch = aeroCode.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                         tipoLabels[teste.tipo]?.toLowerCase().includes(searchTerm.toLowerCase());
+    const matchesTipo = filters.tipo === 'Todos' || tipoLabels[teste.tipo] === filters.tipo;
+    const matchesResultado = filters.resultado === 'Todos' || resultadoLabels[teste.resultado] === filters.resultado;
+    const matchesAeronave = filters.aeronave === 'Todas' || aeroCode === filters.aeronave;
     return matchesSearch && matchesTipo && matchesResultado && matchesAeronave;
   });
 
-  const handleCreateTeste = (e: React.FormEvent) => {
+  const handleCreateTeste = async (e: React.FormEvent) => {
     e.preventDefault();
-    const { resultado, variant } = resultadoMap(novoTeste.resultado);
-    const teste: Teste = {
-      id: Math.random().toString(),
-      aeronave: novoTeste.aeronave,
-      tipo: tipoMap[novoTeste.tipo],
-      resultado,
-      resultadoVariant: variant,
-    };
-    setTestes([teste, ...testes]);
-    setIsModalOpen(false);
-    setNovoTeste({ aeronave: '', tipo: '1', resultado: 's' });
+    setSubmitLoading(true);
+    try {
+      await api.post('/api/testes', { tipo: novoTeste.tipo, resultado: novoTeste.resultado, aeronaveId: Number(novoTeste.aeronaveId) });
+      setIsModalOpen(false); setNovoTeste({ aeronaveId: '', tipo: 'ELETRICO', resultado: 'APROVADO' }); fetchTestes();
+    } catch (err) { console.error('Erro ao criar teste:', err); } finally { setSubmitLoading(false); }
   };
 
-  const openEdit = (t: Teste) => {
+  const openEdit = (t: TesteAPI) => {
     setEditTarget(t);
-    setEditForm({ aeronave: t.aeronave || '', tipo: tipoToKey(t.tipo), resultado: t.resultado === 'Aprovado' ? 's' : 'n' });
+    setEditForm({ aeronaveId: String(t.aeronaveId), tipo: t.tipo, resultado: t.resultado });
     setIsEditOpen(true);
   };
-  const handleEdit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!editTarget) return;
-    const { resultado, variant } = resultadoMap(editForm.resultado);
-    setTestes(testes.map(t =>
-      t.id === editTarget.id
-        ? { ...t, aeronave: editForm.aeronave, tipo: tipoMap[editForm.tipo], resultado, resultadoVariant: variant }
-        : t
-    ));
-    setIsEditOpen(false);
+  const handleEdit = async (e: React.FormEvent) => {
+    e.preventDefault(); if (!editTarget) return;
+    setSubmitLoading(true);
+    try {
+      await api.put(`/api/testes/${editTarget.id}`, { tipo: editForm.tipo, resultado: editForm.resultado, aeronaveId: Number(editForm.aeronaveId) });
+      setIsEditOpen(false); fetchTestes();
+    } catch (err) { console.error('Erro ao editar teste:', err); } finally { setSubmitLoading(false); }
   };
 
-  const openResult = (t: Teste) => {
+  const openResult = (t: TesteAPI) => {
     setResultTarget(t);
-    setResultVal(t.resultado === 'Aprovado' ? 's' : 'n');
+    setResultVal(t.resultado);
     setIsResultOpen(true);
   };
-  const handleResult = () => {
+  const handleResult = async () => {
     if (!resultTarget) return;
-    const { resultado, variant } = resultadoMap(resultVal);
-    setTestes(testes.map(t =>
-      t.id === resultTarget.id ? { ...t, resultado, resultadoVariant: variant } : t
-    ));
-    setIsResultOpen(false);
+    setSubmitLoading(true);
+    try { await api.put(`/api/testes/${resultTarget.id}`, { resultado: resultVal }); setIsResultOpen(false); fetchTestes(); } catch (err) { console.error('Erro ao atualizar resultado:', err); } finally { setSubmitLoading(false); }
   };
 
   return (
@@ -160,15 +155,15 @@ const Testes: React.FC = () => {
                       <td className="py-md px-lg font-body-md text-body-md text-on-surface">
                         <div className="flex items-center gap-sm">
                           <span className="material-symbols-outlined text-outline-variant text-[18px]">flight</span>
-                          {teste.aeronave}
+                          {teste.aeronave?.codigo || '-'}
                         </div>
                       </td>
                       <td className="py-md px-lg font-body-sm text-body-sm text-on-surface-variant">
-                        {teste.tipo}
+                        {tipoLabels[teste.tipo] || teste.tipo}
                       </td>
                       <td className="py-md px-lg">
-                        <span className={`inline-flex items-center px-2 py-1 rounded-full text-[12px] font-semibold border ${teste.resultadoVariant}`}>
-                          {teste.resultado}
+                        <span className={`inline-flex items-center px-2 py-1 rounded-full text-[12px] font-semibold border ${resultadoVariants[teste.resultado] || ''}`}>
+                          {resultadoLabels[teste.resultado] || teste.resultado}
                         </span>
                       </td>
                       <td className="py-md px-lg text-right">
@@ -218,22 +213,22 @@ const Testes: React.FC = () => {
       <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} title="Registrar Teste de Qualidade">
         <form className="flex flex-col gap-md" onSubmit={handleCreateTeste}>
           <div className="flex flex-col gap-xs">
-            <label className="font-label-md text-on-surface">Código da Aeronave</label>
-            <input type="text" value={novoTeste.aeronave} onChange={(e) => setNovoTeste({ ...novoTeste, aeronave: e.target.value })} className={inputCls} required />
+            <label className="font-label-md text-on-surface">ID da Aeronave</label>
+            <input type="number" value={novoTeste.aeronaveId} onChange={(e) => setNovoTeste({ ...novoTeste, aeronaveId: e.target.value })} className={inputCls} required />
           </div>
           <div className="flex flex-col gap-xs">
             <label className="font-label-md text-on-surface">Tipo</label>
             <select value={novoTeste.tipo} onChange={(e) => setNovoTeste({ ...novoTeste, tipo: e.target.value })} className={inputCls} required>
-              <option value="1">1- Elétrico</option>
-              <option value="2">2- Hidráulico</option>
-              <option value="3">3- Aerodinâmico</option>
+              <option value="ELETRICO">1- Elétrico</option>
+              <option value="HIDRAULICO">2- Hidráulico</option>
+              <option value="AERODINAMICO">3- Aerodinâmico</option>
             </select>
           </div>
           <div className="flex flex-col gap-xs">
             <label className="font-label-md text-on-surface">Aprovado?</label>
             <select value={novoTeste.resultado} onChange={(e) => setNovoTeste({ ...novoTeste, resultado: e.target.value })} className={inputCls} required>
-              <option value="s">Sim</option>
-              <option value="n">Não</option>
+              <option value="APROVADO">Sim</option>
+              <option value="REPROVADO">Não</option>
             </select>
           </div>
           <div className="flex justify-end gap-sm mt-md">
@@ -247,22 +242,22 @@ const Testes: React.FC = () => {
       <Modal isOpen={isEditOpen} onClose={() => setIsEditOpen(false)} title={`Editar Teste — ${editTarget?.aeronave || ''}`}>
         <form className="flex flex-col gap-md" onSubmit={handleEdit}>
           <div className="flex flex-col gap-xs">
-            <label className="font-label-md text-on-surface">Código da Aeronave</label>
-            <input type="text" value={editForm.aeronave} onChange={(e) => setEditForm({ ...editForm, aeronave: e.target.value })} className={inputCls} required />
+            <label className="font-label-md text-on-surface">ID da Aeronave</label>
+            <input type="number" value={editForm.aeronaveId} onChange={(e) => setEditForm({ ...editForm, aeronaveId: e.target.value })} className={inputCls} required />
           </div>
           <div className="flex flex-col gap-xs">
             <label className="font-label-md text-on-surface">Tipo</label>
             <select value={editForm.tipo} onChange={(e) => setEditForm({ ...editForm, tipo: e.target.value })} className={inputCls} required>
-              <option value="1">1- Elétrico</option>
-              <option value="2">2- Hidráulico</option>
-              <option value="3">3- Aerodinâmico</option>
+              <option value="ELETRICO">1- Elétrico</option>
+              <option value="HIDRAULICO">2- Hidráulico</option>
+              <option value="AERODINAMICO">3- Aerodinâmico</option>
             </select>
           </div>
           <div className="flex flex-col gap-xs">
             <label className="font-label-md text-on-surface">Resultado</label>
             <select value={editForm.resultado} onChange={(e) => setEditForm({ ...editForm, resultado: e.target.value })} className={inputCls} required>
-              <option value="s">Aprovado</option>
-              <option value="n">Reprovado</option>
+              <option value="APROVADO">Aprovado</option>
+              <option value="REPROVADO">Reprovado</option>
             </select>
           </div>
           <div className="flex justify-end gap-sm mt-md">
@@ -281,16 +276,16 @@ const Testes: React.FC = () => {
           <div className="flex gap-md">
             <button
               type="button"
-              onClick={() => setResultVal('s')}
-              className={`flex-1 flex flex-col items-center gap-xs p-md rounded-xl border-2 transition-all ${resultVal === 's' ? 'border-green-500 bg-green-50 text-green-800' : 'border-outline-variant text-on-surface-variant hover:border-green-300'}`}
+              onClick={() => setResultVal('APROVADO')}
+              className={`flex-1 flex flex-col items-center gap-xs p-md rounded-xl border-2 transition-all ${resultVal === 'APROVADO' ? 'border-green-500 bg-green-50 text-green-800' : 'border-outline-variant text-on-surface-variant hover:border-green-300'}`}
             >
               <span className="material-symbols-outlined text-[28px]">check_circle</span>
               <span className="font-label-md text-label-md">Aprovado</span>
             </button>
             <button
               type="button"
-              onClick={() => setResultVal('n')}
-              className={`flex-1 flex flex-col items-center gap-xs p-md rounded-xl border-2 transition-all ${resultVal === 'n' ? 'border-red-500 bg-red-50 text-red-800' : 'border-outline-variant text-on-surface-variant hover:border-red-300'}`}
+              onClick={() => setResultVal('REPROVADO')}
+              className={`flex-1 flex flex-col items-center gap-xs p-md rounded-xl border-2 transition-all ${resultVal === 'REPROVADO' ? 'border-red-500 bg-red-50 text-red-800' : 'border-outline-variant text-on-surface-variant hover:border-red-300'}`}
             >
               <span className="material-symbols-outlined text-[28px]">cancel</span>
               <span className="font-label-md text-label-md">Reprovado</span>
