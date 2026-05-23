@@ -221,7 +221,7 @@ erDiagram
 - [x] Middleware `authMiddleware` que valida token em toda request protegida
 - [x] Middleware `permissaoMiddleware(nivel[])` para controle de acesso
 - [x] Token armazenado em `httpOnly cookie` ou `localStorage` com interceptor
-- [ ] Rate limiting no login (proteção brute force)
+- [x] Rate limiting no login (proteção brute force)
 - [x] CORS configurado corretamente
 
 ### Fase 6 — Relatórios e Funcionalidades Avançadas

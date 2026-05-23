@@ -4,7 +4,7 @@
 
 import { Router } from 'express';
 import { prisma } from '../lib/prisma.js';
-import { autenticar } from '../middlewares/auth.middleware.js';
+import { autenticar, autorizar } from '../middlewares/auth.middleware.js';
 
 export const etapasRouter = Router();
 etapasRouter.use(autenticar);
@@ -47,7 +47,7 @@ etapasRouter.get('/:id', async (req, res) => {
 });
 
 /** POST /api/etapas */
-etapasRouter.post('/', async (req, res) => {
+etapasRouter.post('/', autorizar('ADMINISTRADOR', 'ENGENHEIRO'), async (req, res) => {
   try {
     const { nome, prazo, status, aeronaveId, funcionarioIds } = req.body;
 
@@ -84,7 +84,7 @@ etapasRouter.post('/', async (req, res) => {
 });
 
 /** PUT /api/etapas/:id */
-etapasRouter.put('/:id', async (req, res) => {
+etapasRouter.put('/:id', autorizar('ADMINISTRADOR', 'ENGENHEIRO'), async (req, res) => {
   try {
     const { nome, prazo, status, aeronaveId } = req.body;
 
@@ -111,7 +111,7 @@ etapasRouter.put('/:id', async (req, res) => {
 });
 
 /** PUT /api/etapas/:id/funcionarios — Sincronizar alocação (substitui todos) */
-etapasRouter.put('/:id/funcionarios', async (req, res) => {
+etapasRouter.put('/:id/funcionarios', autorizar('ADMINISTRADOR', 'ENGENHEIRO'), async (req, res) => {
   try {
     const etapaId = Number(req.params.id);
     const { funcionarioIds } = req.body;
@@ -194,7 +194,7 @@ etapasRouter.delete('/:id/funcionarios/:funcId', async (req, res) => {
 });
 
 /** DELETE /api/etapas/:id */
-etapasRouter.delete('/:id', async (req, res) => {
+etapasRouter.delete('/:id', autorizar('ADMINISTRADOR'), async (req, res) => {
   try {
     await prisma.etapa.delete({ where: { id: Number(req.params.id) } });
     res.status(204).send();

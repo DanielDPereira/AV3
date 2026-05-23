@@ -4,7 +4,7 @@
 
 import { Router } from 'express';
 import { prisma } from '../lib/prisma.js';
-import { autenticar } from '../middlewares/auth.middleware.js';
+import { autenticar, autorizar } from '../middlewares/auth.middleware.js';
 
 export const pecasRouter = Router();
 pecasRouter.use(autenticar);
@@ -39,7 +39,7 @@ pecasRouter.get('/:id', async (req, res) => {
 });
 
 /** POST /api/pecas */
-pecasRouter.post('/', async (req, res) => {
+pecasRouter.post('/', autorizar('ADMINISTRADOR', 'ENGENHEIRO'), async (req, res) => {
   try {
     const { nome, tipo, fornecedor, status, aeronaveId } = req.body;
 
@@ -67,7 +67,7 @@ pecasRouter.post('/', async (req, res) => {
 });
 
 /** PUT /api/pecas/:id */
-pecasRouter.put('/:id', async (req, res) => {
+pecasRouter.put('/:id', autorizar('ADMINISTRADOR', 'ENGENHEIRO'), async (req, res) => {
   try {
     const { nome, tipo, fornecedor, status, aeronaveId } = req.body;
 
@@ -92,7 +92,7 @@ pecasRouter.put('/:id', async (req, res) => {
 });
 
 /** DELETE /api/pecas/:id */
-pecasRouter.delete('/:id', async (req, res) => {
+pecasRouter.delete('/:id', autorizar('ADMINISTRADOR'), async (req, res) => {
   try {
     await prisma.peca.delete({ where: { id: Number(req.params.id) } });
     res.status(204).send();

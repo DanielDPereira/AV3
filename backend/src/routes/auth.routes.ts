@@ -10,11 +10,43 @@ import { prisma } from '../lib/prisma.js';
 export const authRouter = Router();
 
 /**
+ * Rate Limiting em Memória (Proteção Brute Force)
+ * Bloqueia um IP se tentar logar mais de 5 vezes em 1 minuto.
+ */
+const rateLimitCache = new Map<string, { count: number; timestamp: number }>();
+
+const MAX_TENTATIVAS = 5;
+const JANELA_TEMPO_MS = 60 * 1000; // 1 minuto
+
+const loginRateLimiter = (req: any, res: any, next: any) => {
+  const ip = req.ip || req.connection.remoteAddress || 'unknown';
+  const now = Date.now();
+  const userData = rateLimitCache.get(ip);
+
+  if (userData) {
+    if (now - userData.timestamp < JANELA_TEMPO_MS) {
+      if (userData.count >= MAX_TENTATIVAS) {
+        res.status(429).json({ error: 'Muitas tentativas de login. Tente novamente em 1 minuto.' });
+        return;
+      }
+      userData.count++;
+    } else {
+      userData.count = 1;
+      userData.timestamp = now;
+    }
+    rateLimitCache.set(ip, userData);
+  } else {
+    rateLimitCache.set(ip, { count: 1, timestamp: now });
+  }
+  next();
+};
+
+/**
  * POST /api/auth/login
  * Body: { usuario: string, senha: string }
  * Response: { funcionario, token }
  */
-authRouter.post('/login', async (req, res) => {
+authRouter.post('/login', loginRateLimiter, async (req, res) => {
   try {
     const { usuario, senha } = req.body;
 

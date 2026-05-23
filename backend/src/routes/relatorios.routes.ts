@@ -4,7 +4,7 @@
 
 import { Router } from 'express';
 import { prisma } from '../lib/prisma.js';
-import { autenticar } from '../middlewares/auth.middleware.js';
+import { autenticar, autorizar } from '../middlewares/auth.middleware.js';
 
 export const relatoriosRouter = Router();
 relatoriosRouter.use(autenticar);
@@ -39,7 +39,7 @@ relatoriosRouter.get('/:id', async (req, res) => {
 });
 
 /** POST /api/relatorios — Gera relatório para uma aeronave */
-relatoriosRouter.post('/', async (req, res) => {
+relatoriosRouter.post('/', autorizar('ADMINISTRADOR', 'ENGENHEIRO'), async (req, res) => {
   try {
     const { aeronaveId } = req.body;
 
@@ -107,7 +107,7 @@ relatoriosRouter.post('/', async (req, res) => {
 });
 
 /** DELETE /api/relatorios/:id */
-relatoriosRouter.delete('/:id', async (req, res) => {
+relatoriosRouter.delete('/:id', autorizar('ADMINISTRADOR'), async (req, res) => {
   try {
     await prisma.relatorio.delete({ where: { id: Number(req.params.id) } });
     res.status(204).send();

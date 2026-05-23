@@ -4,7 +4,7 @@
 
 import { Router } from 'express';
 import { prisma } from '../lib/prisma.js';
-import { autenticar } from '../middlewares/auth.middleware.js';
+import { autenticar, autorizar } from '../middlewares/auth.middleware.js';
 
 export const aeronavesRouter = Router();
 
@@ -53,7 +53,7 @@ aeronavesRouter.get('/:id', async (req, res) => {
 });
 
 /** POST /api/aeronaves — Criar nova */
-aeronavesRouter.post('/', async (req, res) => {
+aeronavesRouter.post('/', autorizar('ADMINISTRADOR', 'ENGENHEIRO'), async (req, res) => {
   try {
     const { codigo, modelo, tipo, capacidade, alcance } = req.body;
 
@@ -86,7 +86,7 @@ aeronavesRouter.post('/', async (req, res) => {
 });
 
 /** PUT /api/aeronaves/:id — Atualizar */
-aeronavesRouter.put('/:id', async (req, res) => {
+aeronavesRouter.put('/:id', autorizar('ADMINISTRADOR', 'ENGENHEIRO'), async (req, res) => {
   try {
     const { codigo, modelo, tipo, capacidade, alcance } = req.body;
 
@@ -113,7 +113,7 @@ aeronavesRouter.put('/:id', async (req, res) => {
 });
 
 /** DELETE /api/aeronaves/:id — Excluir */
-aeronavesRouter.delete('/:id', async (req, res) => {
+aeronavesRouter.delete('/:id', autorizar('ADMINISTRADOR'), async (req, res) => {
   try {
     await prisma.aeronave.delete({
       where: { id: Number(req.params.id) },

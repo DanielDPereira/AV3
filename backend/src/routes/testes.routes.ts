@@ -4,7 +4,7 @@
 
 import { Router } from 'express';
 import { prisma } from '../lib/prisma.js';
-import { autenticar } from '../middlewares/auth.middleware.js';
+import { autenticar, autorizar } from '../middlewares/auth.middleware.js';
 
 export const testesRouter = Router();
 testesRouter.use(autenticar);
@@ -39,7 +39,7 @@ testesRouter.get('/:id', async (req, res) => {
 });
 
 /** POST /api/testes */
-testesRouter.post('/', async (req, res) => {
+testesRouter.post('/', autorizar('ADMINISTRADOR', 'ENGENHEIRO'), async (req, res) => {
   try {
     const { tipo, resultado, aeronaveId } = req.body;
 
@@ -65,7 +65,7 @@ testesRouter.post('/', async (req, res) => {
 });
 
 /** PUT /api/testes/:id */
-testesRouter.put('/:id', async (req, res) => {
+testesRouter.put('/:id', autorizar('ADMINISTRADOR', 'ENGENHEIRO'), async (req, res) => {
   try {
     const { tipo, resultado, aeronaveId } = req.body;
 
@@ -88,7 +88,7 @@ testesRouter.put('/:id', async (req, res) => {
 });
 
 /** DELETE /api/testes/:id */
-testesRouter.delete('/:id', async (req, res) => {
+testesRouter.delete('/:id', autorizar('ADMINISTRADOR'), async (req, res) => {
   try {
     await prisma.teste.delete({ where: { id: Number(req.params.id) } });
     res.status(204).send();
