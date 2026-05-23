@@ -189,46 +189,46 @@ erDiagram
 | | | | |
 | `GET` | `/api/dashboard/stats` | Estatísticas gerais | ✅ |
 
-- [ ] Estruturar `backend/src/` com padrão MVC:
+- [x] Estruturar `backend/src/` com padrão MVC:
   - `routes/` — definição das rotas Express
-  - `controllers/` — lógica de request/response
+  - `controllers/` — lógica de request/response (consolidado nas rotas para MVP)
   - `middlewares/` — auth, validação, error handling
   - `services/` — lógica de negócio
   - `utils/` — helpers (token, hash, etc.)
-- [ ] Implementar todas as rotas acima
-- [ ] Error handling global com middleware
-- [ ] Validação de dados de entrada
+- [x] Implementar todas as rotas acima
+- [x] Error handling global com middleware
+- [x] Validação de dados de entrada
 
 ### Fase 4 — Adaptação do Frontend (AV2 → AV3)
 > [!WARNING]
 > O frontend da AV2 usa dados mockados. Precisamos substituir por chamadas à API real.
 
-- [ ] Criar serviço `api.ts` com Axios configurado (baseURL, interceptors JWT)
-- [ ] Refatorar `AuthContext` para usar `/api/auth/login` real
-- [ ] Substituir `mockAeronaves` por `GET /api/aeronaves`
-- [ ] Substituir `mockPecas` por `GET /api/pecas`
-- [ ] Substituir `mockEtapas` por `GET /api/etapas`
-- [ ] Substituir `mockTestes` por `GET /api/testes`
-- [ ] Substituir `mockFuncionarios` por `GET /api/funcionarios`
-- [ ] Substituir `mockRelatorios` por `GET /api/relatorios`
-- [ ] Implementar CRUD real em todas as telas (Create, Update, Delete via modais)
-- [ ] Adicionar loading states e error handling nas páginas
-- [ ] Configurar proxy do Vite para `/api` → backend
+- [x] Criar serviço `api.ts` com Axios configurado (baseURL, interceptors JWT)
+- [x] Refatorar `AuthContext` para usar `/api/auth/login` real
+- [x] Substituir `mockAeronaves` por `GET /api/aeronaves`
+- [x] Substituir `mockPecas` por `GET /api/pecas`
+- [x] Substituir `mockEtapas` por `GET /api/etapas`
+- [x] Substituir `mockTestes` por `GET /api/testes`
+- [x] Substituir `mockFuncionarios` por `GET /api/funcionarios`
+- [x] Substituir `mockRelatorios` por `GET /api/relatorios`
+- [x] Implementar CRUD real em todas as telas (Create, Update, Delete via modais)
+- [x] Adicionar loading states e error handling nas páginas
+- [x] Configurar proxy do Vite para `/api` → backend
 
 ### Fase 5 — Segurança e Autenticação
-- [ ] Implementar JWT com `jsonwebtoken`
-- [ ] Hash de senhas com `bcrypt` (como na AV1 que usava scrypt)
-- [ ] Middleware `authMiddleware` que valida token em toda request protegida
-- [ ] Middleware `permissaoMiddleware(nivel[])` para controle de acesso
-- [ ] Token armazenado em `httpOnly cookie` ou `localStorage` com interceptor
+- [x] Implementar JWT com `jsonwebtoken`
+- [x] Hash de senhas com `bcrypt` (como na AV1 que usava scrypt)
+- [x] Middleware `authMiddleware` que valida token em toda request protegida
+- [x] Middleware `permissaoMiddleware(nivel[])` para controle de acesso
+- [x] Token armazenado em `httpOnly cookie` ou `localStorage` com interceptor
 - [ ] Rate limiting no login (proteção brute force)
-- [ ] CORS configurado corretamente
+- [x] CORS configurado corretamente
 
 ### Fase 6 — Relatórios e Funcionalidades Avançadas
-- [ ] Gerar relatório completo de aeronave (como na AV1)
-- [ ] Download de relatório em formato TXT
-- [ ] Dashboard com estatísticas reais do banco
-- [ ] Filtros e busca nas listagens
+- [x] Gerar relatório completo de aeronave (como na AV1)
+- [x] Download de relatório em formato TXT
+- [x] Dashboard com estatísticas reais do banco
+- [x] Filtros e busca nas listagens
 
 ---
 

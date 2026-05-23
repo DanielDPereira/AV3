@@ -55,6 +55,7 @@ const Etapas: React.FC = () => {
   const initialSearch = queryParams.get('search') || '';
 
   const [etapas, setEtapas] = useState<EtapaAPI[]>([]);
+  const [aeronaves, setAeronaves] = useState<AeronaveAPI[]>([]);
   const [allFuncs, setAllFuncs] = useState<FuncAPI[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [submitLoading, setSubmitLoading] = useState(false);
@@ -84,7 +85,10 @@ const Etapas: React.FC = () => {
   const fetchFuncs = useCallback(async () => {
     try { const res = await api.get('/api/funcionarios'); setAllFuncs(res.data); } catch (err) { console.error(err); }
   }, []);
-  useEffect(() => { fetchEtapas(); fetchFuncs(); }, [fetchEtapas, fetchFuncs]);
+  const fetchAeronaves = useCallback(async () => {
+    try { const res = await api.get('/api/aeronaves'); setAeronaves(res.data); } catch (err) { console.error(err); }
+  }, []);
+  useEffect(() => { fetchEtapas(); fetchFuncs(); fetchAeronaves(); }, [fetchEtapas, fetchFuncs, fetchAeronaves]);
 
   const uniqueAeronaves = Array.from(new Set(etapas.filter(e => e.aeronave).map(e => e.aeronave!.codigo)));
 
@@ -310,7 +314,13 @@ const Etapas: React.FC = () => {
       {/* Modal: Cadastrar */}
       <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} title="Nova Etapa">
         <form className="flex flex-col gap-md" onSubmit={handleCreate}>
-          <div className="flex flex-col gap-xs"><label className="font-label-md text-on-surface">ID da Aeronave</label><input type="number" value={novaEtapa.aeronaveId} onChange={(e) => setNovaEtapa({...novaEtapa, aeronaveId: e.target.value})} className={inputCls} required /></div>
+          <div className="flex flex-col gap-xs">
+            <label className="font-label-md text-on-surface">Aeronave</label>
+            <select value={novaEtapa.aeronaveId} onChange={(e) => setNovaEtapa({...novaEtapa, aeronaveId: e.target.value})} className={inputCls} required>
+              <option value="" disabled>Selecione uma aeronave...</option>
+              {aeronaves.map(a => <option key={a.id} value={a.id}>{a.codigo}</option>)}
+            </select>
+          </div>
           <div className="flex flex-col gap-xs"><label className="font-label-md text-on-surface">Nome da etapa</label><input type="text" value={novaEtapa.nome} onChange={(e) => setNovaEtapa({...novaEtapa, nome: e.target.value})} className={inputCls} required /></div>
           <div className="flex flex-col gap-xs"><label className="font-label-md text-on-surface">Prazo</label><input type="date" value={novaEtapa.prazo} onChange={(e) => setNovaEtapa({...novaEtapa, prazo: e.target.value})} className={inputCls} required /></div>
           <div className="flex justify-end gap-sm mt-md">
@@ -323,7 +333,13 @@ const Etapas: React.FC = () => {
       {/* Modal: Editar */}
       <Modal isOpen={isEditOpen} onClose={() => setIsEditOpen(false)} title={`Editar Etapa — ${editTarget?.nome || ''}`}>
         <form className="flex flex-col gap-md" onSubmit={handleEdit}>
-          <div className="flex flex-col gap-xs"><label className="font-label-md text-on-surface">ID da Aeronave</label><input type="number" value={editForm.aeronaveId} onChange={(e) => setEditForm({...editForm, aeronaveId: e.target.value})} className={inputCls} required /></div>
+          <div className="flex flex-col gap-xs">
+            <label className="font-label-md text-on-surface">Aeronave</label>
+            <select value={editForm.aeronaveId} onChange={(e) => setEditForm({...editForm, aeronaveId: e.target.value})} className={inputCls} required>
+              <option value="" disabled>Selecione uma aeronave...</option>
+              {aeronaves.map(a => <option key={a.id} value={a.id}>{a.codigo}</option>)}
+            </select>
+          </div>
           <div className="flex flex-col gap-xs"><label className="font-label-md text-on-surface">Nome da Etapa</label><input type="text" value={editForm.nome} onChange={(e) => setEditForm({...editForm, nome: e.target.value})} className={inputCls} required /></div>
           <div className="flex flex-col gap-xs"><label className="font-label-md text-on-surface">Prazo</label><input type="date" value={editForm.prazo} onChange={(e) => setEditForm({...editForm, prazo: e.target.value})} className={inputCls} required /></div>
           <div className="flex flex-col gap-xs"><label className="font-label-md text-on-surface">Status</label><select value={editForm.status} onChange={(e) => setEditForm({...editForm, status: e.target.value})} className={inputCls} required><option value="PENDENTE">Pendente</option><option value="EM_ANDAMENTO">Em andamento</option><option value="CONCLUIDA">Concluída</option></select></div>

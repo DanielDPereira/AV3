@@ -31,8 +31,11 @@ const resultadoVariants: Record<string, string> = {
 const resultadoLabels: Record<string, string> = { APROVADO: 'Aprovado', REPROVADO: 'Reprovado' };
 const tipoLabels: Record<string, string> = { ELETRICO: 'Elétrico', HIDRAULICO: 'Hidráulico', AERODINAMICO: 'Aerodinâmico' };
 
+interface AeronaveAPI { id: number; codigo: string; }
+
 const Testes: React.FC = () => {
   const [testes, setTestes] = useState<TesteAPI[]>([]);
+  const [aeronaves, setAeronaves] = useState<AeronaveAPI[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [submitLoading, setSubmitLoading] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -51,7 +54,10 @@ const Testes: React.FC = () => {
     setIsLoading(true);
     try { const res = await api.get('/api/testes'); setTestes(res.data); } catch (err) { console.error('Erro ao buscar testes:', err); } finally { setIsLoading(false); }
   }, []);
-  useEffect(() => { fetchTestes(); }, [fetchTestes]);
+  const fetchAeronaves = useCallback(async () => {
+    try { const res = await api.get('/api/aeronaves'); setAeronaves(res.data); } catch (err) { console.error(err); }
+  }, []);
+  useEffect(() => { fetchTestes(); fetchAeronaves(); }, [fetchTestes, fetchAeronaves]);
 
   const uniqueAeronaves = Array.from(new Set(testes.filter(t => t.aeronave).map(t => t.aeronave!.codigo)));
 
@@ -213,8 +219,11 @@ const Testes: React.FC = () => {
       <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} title="Registrar Teste de Qualidade">
         <form className="flex flex-col gap-md" onSubmit={handleCreateTeste}>
           <div className="flex flex-col gap-xs">
-            <label className="font-label-md text-on-surface">ID da Aeronave</label>
-            <input type="number" value={novoTeste.aeronaveId} onChange={(e) => setNovoTeste({ ...novoTeste, aeronaveId: e.target.value })} className={inputCls} required />
+            <label className="font-label-md text-on-surface">Aeronave</label>
+            <select value={novoTeste.aeronaveId} onChange={(e) => setNovoTeste({ ...novoTeste, aeronaveId: e.target.value })} className={inputCls} required>
+              <option value="" disabled>Selecione uma aeronave...</option>
+              {aeronaves.map(a => <option key={a.id} value={a.id}>{a.codigo}</option>)}
+            </select>
           </div>
           <div className="flex flex-col gap-xs">
             <label className="font-label-md text-on-surface">Tipo</label>
@@ -242,8 +251,11 @@ const Testes: React.FC = () => {
       <Modal isOpen={isEditOpen} onClose={() => setIsEditOpen(false)} title={`Editar Teste — ${editTarget?.aeronave || ''}`}>
         <form className="flex flex-col gap-md" onSubmit={handleEdit}>
           <div className="flex flex-col gap-xs">
-            <label className="font-label-md text-on-surface">ID da Aeronave</label>
-            <input type="number" value={editForm.aeronaveId} onChange={(e) => setEditForm({ ...editForm, aeronaveId: e.target.value })} className={inputCls} required />
+            <label className="font-label-md text-on-surface">Aeronave</label>
+            <select value={editForm.aeronaveId} onChange={(e) => setEditForm({ ...editForm, aeronaveId: e.target.value })} className={inputCls} required>
+              <option value="" disabled>Selecione uma aeronave...</option>
+              {aeronaves.map(a => <option key={a.id} value={a.id}>{a.codigo}</option>)}
+            </select>
           </div>
           <div className="flex flex-col gap-xs">
             <label className="font-label-md text-on-surface">Tipo</label>

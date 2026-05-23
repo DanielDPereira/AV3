@@ -39,8 +39,11 @@ const getTipoBadge = (tipo: string) => tipo === 'NACIONAL'
   : 'bg-tertiary-fixed text-on-tertiary-fixed';
 const getTipoLabel = (tipo: string) => tipo === 'NACIONAL' ? 'Nacional' : 'Importada';
 
+interface AeronaveAPI { id: number; codigo: string; }
+
 const Pecas: React.FC = () => {
   const [pecas, setPecas] = useState<PecaAPI[]>([]);
+  const [aeronaves, setAeronaves] = useState<AeronaveAPI[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [submitLoading, setSubmitLoading] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -62,9 +65,12 @@ const Pecas: React.FC = () => {
 
   const fetchPecas = useCallback(async () => {
     setIsLoading(true);
-    try { const res = await api.get('/api/pecas'); setPecas(res.data); } catch (err) { console.error('Erro ao buscar peças:', err); } finally { setIsLoading(false); }
+    try { const res = await api.get('/api/pecas'); setPecas(res.data); } catch (err) { console.error('Erro:', err); } finally { setIsLoading(false); }
   }, []);
-  useEffect(() => { fetchPecas(); }, [fetchPecas]);
+  const fetchAeronaves = useCallback(async () => {
+    try { const res = await api.get('/api/aeronaves'); setAeronaves(res.data); } catch (err) { console.error(err); }
+  }, []);
+  useEffect(() => { fetchPecas(); fetchAeronaves(); }, [fetchPecas, fetchAeronaves]);
 
   const uniqueAeronaves = Array.from(new Set(pecas.filter(p => p.aeronave).map(p => p.aeronave!.codigo)));
 
@@ -244,8 +250,11 @@ const Pecas: React.FC = () => {
       <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} title="Adicionar Peça a uma Aeronave">
         <form className="flex flex-col gap-md" onSubmit={handleCreate}>
           <div className="flex flex-col gap-xs">
-            <label className="font-label-md text-on-surface">ID da Aeronave alvo</label>
-            <input type="number" value={novaPeca.aeronaveId} onChange={(e) => setNovaPeca({ ...novaPeca, aeronaveId: e.target.value })} className={inputCls} placeholder="Opcional" />
+            <label className="font-label-md text-on-surface">Aeronave Destino</label>
+            <select value={novaPeca.aeronaveId} onChange={(e) => setNovaPeca({ ...novaPeca, aeronaveId: e.target.value })} className={inputCls}>
+              <option value="">Sem alocação (Estoque)</option>
+              {aeronaves.map(a => <option key={a.id} value={a.id}>{a.codigo}</option>)}
+            </select>
           </div>
           <div className="flex flex-col gap-xs">
             <label className="font-label-md text-on-surface">Nome do componente</label>
@@ -272,8 +281,11 @@ const Pecas: React.FC = () => {
       <Modal isOpen={isEditOpen} onClose={() => setIsEditOpen(false)} title={`Editar — ${editTarget?.nome || ''}`}>
         <form className="flex flex-col gap-md" onSubmit={handleEdit}>
           <div className="flex flex-col gap-xs">
-            <label className="font-label-md text-on-surface">ID da Aeronave</label>
-            <input type="number" value={editForm.aeronaveId} onChange={(e) => setEditForm({ ...editForm, aeronaveId: e.target.value })} className={inputCls} placeholder="Opcional" />
+            <label className="font-label-md text-on-surface">Aeronave Destino</label>
+            <select value={editForm.aeronaveId} onChange={(e) => setEditForm({ ...editForm, aeronaveId: e.target.value })} className={inputCls}>
+              <option value="">Sem alocação (Estoque)</option>
+              {aeronaves.map(a => <option key={a.id} value={a.id}>{a.codigo}</option>)}
+            </select>
           </div>
           <div className="flex flex-col gap-xs">
             <label className="font-label-md text-on-surface">Nome do componente</label>

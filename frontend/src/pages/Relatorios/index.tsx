@@ -23,8 +23,11 @@ const actionBtnEditCls = `${actionBtnBaseCls} text-on-surface-variant hover:text
 const actionBtnDeleteCls = `${actionBtnBaseCls} text-on-surface-variant hover:text-error hover:bg-error-container/30`;
 const actionBtnViewCls = `${actionBtnBaseCls} text-on-surface-variant hover:text-primary hover:bg-primary-fixed-dim/20`;
 const actionBtnDownloadCls = `${actionBtnBaseCls} text-on-surface-variant hover:text-primary hover:bg-primary-fixed-dim/20`;
+interface AeronaveAPI { id: number; codigo: string; }
+
 const Relatorios: React.FC = () => {
   const [relatorios, setRelatorios] = useState<RelatorioAPI[]>([]);
+  const [aeronaves, setAeronaves] = useState<AeronaveAPI[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [submitLoading, setSubmitLoading] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -39,7 +42,10 @@ const Relatorios: React.FC = () => {
     setIsLoading(true);
     try { const res = await api.get('/api/relatorios'); setRelatorios(res.data); } catch (err) { console.error('Erro ao buscar relatórios:', err); } finally { setIsLoading(false); }
   }, []);
-  useEffect(() => { fetchRelatorios(); }, [fetchRelatorios]);
+  const fetchAeronaves = useCallback(async () => {
+    try { const res = await api.get('/api/aeronaves'); setAeronaves(res.data); } catch (err) { console.error(err); }
+  }, []);
+  useEffect(() => { fetchRelatorios(); fetchAeronaves(); }, [fetchRelatorios, fetchAeronaves]);
 
   const uniqueAeronaves = Array.from(new Set(relatorios.filter(r => r.aeronave).map(r => r.aeronave!.codigo)));
 
@@ -179,8 +185,11 @@ const Relatorios: React.FC = () => {
       <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} title="Gerar Relatório de Entrega">
         <form className="flex flex-col gap-md" onSubmit={handleGerarRelatorio}>
           <div className="flex flex-col gap-xs">
-            <label className="font-label-md text-on-surface">ID da Aeronave</label>
-            <input type="number" value={novoRelatorio.aeronaveId} onChange={(e) => setNovoRelatorio({ ...novoRelatorio, aeronaveId: e.target.value })} className={inputCls} required />
+            <label className="font-label-md text-on-surface">Aeronave</label>
+            <select value={novoRelatorio.aeronaveId} onChange={(e) => setNovoRelatorio({ ...novoRelatorio, aeronaveId: e.target.value })} className={inputCls} required>
+              <option value="" disabled>Selecione uma aeronave...</option>
+              {aeronaves.map(a => <option key={a.id} value={a.id}>{a.codigo}</option>)}
+            </select>
           </div>
           <div className="flex justify-end gap-sm mt-md">
             <button type="button" onClick={() => setIsModalOpen(false)} className="px-md py-sm rounded text-primary hover:bg-primary-fixed-dim/20">Cancelar</button>
