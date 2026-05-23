@@ -10,7 +10,7 @@ interface RelatorioAPI {
   conteudo: string;
   aeronaveId: number;
   aeronave?: { codigo: string };
-  criadoEm: string;
+  dataGeracao: string;
 }
 
 const inputCls = "px-sm py-xs border border-outline-variant rounded-lg bg-surface-container-lowest text-on-surface focus:border-primary focus:ring-2 focus:ring-primary-fixed-dim focus:outline-none w-full transition-all";
@@ -147,7 +147,7 @@ const Relatorios: React.FC = () => {
                         {relatorio.aeronave?.codigo || '-'}
                       </td>
                       <td className="py-md px-lg font-body-sm text-body-sm text-on-surface-variant hidden sm:table-cell">
-                        {formatDate(relatorio.criadoEm)}
+                        {formatDate(relatorio.dataGeracao)}
                       </td>
                       <td className="py-md px-lg text-right">
                         <div className="flex items-center justify-end gap-xs lg:opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 transition-opacity">

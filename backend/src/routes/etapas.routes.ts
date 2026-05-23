@@ -17,7 +17,7 @@ etapasRouter.get('/', async (_req, res) => {
       include: {
         aeronave: { select: { codigo: true, modelo: true } },
         funcionarios: {
-          include: { funcionario: { select: { id: true, nome: true } } },
+          include: { funcionario: { select: { id: true, nome: true, usuario: true } } },
         },
       },
     });
@@ -107,6 +107,39 @@ etapasRouter.put('/:id', async (req, res) => {
     if (error.code === 'P2025') { res.status(404).json({ error: 'Etapa não encontrada' }); return; }
     console.error('Erro ao atualizar etapa:', error);
     res.status(500).json({ error: 'Erro ao atualizar etapa' });
+  }
+});
+
+/** PUT /api/etapas/:id/funcionarios — Sincronizar alocação (substitui todos) */
+etapasRouter.put('/:id/funcionarios', async (req, res) => {
+  try {
+    const etapaId = Number(req.params.id);
+    const { funcionarioIds } = req.body;
+    if (!Array.isArray(funcionarioIds)) {
+      res.status(400).json({ error: 'funcionarioIds deve ser um array' });
+      return;
+    }
+
+    // Remove todos e re-cria
+    await prisma.etapaFuncionario.deleteMany({ where: { etapaId } });
+    if (funcionarioIds.length > 0) {
+      await prisma.etapaFuncionario.createMany({
+        data: funcionarioIds.map((fId: number) => ({ etapaId, funcionarioId: fId })),
+        skipDuplicates: true,
+      });
+    }
+
+    const etapa = await prisma.etapa.findUnique({
+      where: { id: etapaId },
+      include: {
+        funcionarios: { include: { funcionario: { select: { id: true, nome: true } } } },
+      },
+    });
+
+    res.json(etapa);
+  } catch (error) {
+    console.error('Erro ao sincronizar funcionários:', error);
+    res.status(500).json({ error: 'Erro ao sincronizar funcionários' });
   }
 });
 

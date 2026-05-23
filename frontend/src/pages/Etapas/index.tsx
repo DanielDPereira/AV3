@@ -1,10 +1,25 @@
-import React, { useState, Fragment } from 'react';
+import React, { useState, useEffect, useCallback, Fragment } from 'react';
 import { useLocation } from 'react-router-dom';
 import Layout from '../../components/Layout';
 import Modal from '../../components/Modal';
 import Tooltip from '../../components/Tooltip';
-import { type Etapa, type FuncionarioAlocado, mockEtapas } from '../../types/etapas';
-import { mockFuncionarios } from '../../types/funcionarios';
+import api from '../../services/api';
+
+interface FuncAlocado {
+  id: number;
+  nome: string;
+  usuario: string;
+}
+interface EtapaAPI {
+  id: number;
+  nome: string;
+  prazo: string;
+  status: 'PENDENTE' | 'EM_ANDAMENTO' | 'CONCLUIDA';
+  aeronaveId: number;
+  aeronave?: { codigo: string };
+  funcionarios?: { funcionario: FuncAlocado }[];
+}
+interface FuncAPI { id: number; nome: string; usuario: string; nivelPermissao: string; }
 
 const inputCls = "px-sm py-xs border border-outline-variant rounded-lg bg-surface-container-lowest text-on-surface focus:border-primary focus:ring-2 focus:ring-primary-fixed-dim focus:outline-none w-full transition-all";
 const btnPrimaryCls = "w-full md:w-auto bg-primary text-on-primary px-lg py-sm rounded-lg font-label-md text-label-md flex items-center justify-center gap-xs shadow-md hover:bg-primary-container hover:text-on-primary-container transition-all active:scale-[0.98]";
@@ -17,10 +32,10 @@ const actionBtnDeleteCls = `${actionBtnBaseCls} text-on-surface-variant hover:te
 const actionBtnViewCls = `${actionBtnBaseCls} text-on-surface-variant hover:text-primary hover:bg-primary-fixed-dim/20`;
 const actionBtnAddCls = `${actionBtnBaseCls} text-on-surface-variant hover:text-primary hover:bg-primary-fixed-dim/20`;
 
-const statusMeta: Record<string, { variant: string; icon: string }> = {
-  'Pendente': { variant: 'bg-surface-variant text-on-surface-variant', icon: 'chevron_right' },
-  'Em andamento': { variant: 'bg-secondary-container text-on-secondary-container', icon: 'expand_more' },
-  'Concluída': { variant: 'bg-primary-fixed text-on-primary-fixed', icon: 'chevron_right' },
+const statusMeta: Record<string, { variant: string; icon: string; label: string }> = {
+  'PENDENTE': { variant: 'bg-surface-variant text-on-surface-variant', icon: 'chevron_right', label: 'Pendente' },
+  'EM_ANDAMENTO': { variant: 'bg-secondary-container text-on-secondary-container', icon: 'expand_more', label: 'Em andamento' },
+  'CONCLUIDA': { variant: 'bg-primary-fixed text-on-primary-fixed', icon: 'chevron_right', label: 'Concluída' },
 };
 
 const corVariants = [
@@ -39,113 +54,105 @@ const Etapas: React.FC = () => {
   const queryParams = new URLSearchParams(location.search);
   const initialSearch = queryParams.get('search') || '';
 
-  const [etapas, setEtapas] = useState<Etapa[]>(mockEtapas);
+  const [etapas, setEtapas] = useState<EtapaAPI[]>([]);
+  const [allFuncs, setAllFuncs] = useState<FuncAPI[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [submitLoading, setSubmitLoading] = useState(false);
   const [searchTerm, setSearchTerm] = useState(initialSearch);
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [novaEtapa, setNovaEtapa] = useState({ aeronave: '', nome: '', prazo: '' });
+  const [novaEtapa, setNovaEtapa] = useState({ aeronaveId: '', nome: '', prazo: '' });
 
-  // ── Edição ──────────────────────────────────────────────────────────
   const [isEditOpen, setIsEditOpen] = useState(false);
-  const [editTarget, setEditTarget] = useState<Etapa | null>(null);
-  const [editForm, setEditForm] = useState({ aeronaveCodigo: '', nome: '', prazo: '', status: 'Pendente' });
+  const [editTarget, setEditTarget] = useState<EtapaAPI | null>(null);
+  const [editForm, setEditForm] = useState({ aeronaveId: '', nome: '', prazo: '', status: 'PENDENTE' });
 
-  // ── Exclusão ────────────────────────────────────────────────────────
   const [isDeleteOpen, setIsDeleteOpen] = useState(false);
-  const [deleteTarget, setDeleteTarget] = useState<Etapa | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<EtapaAPI | null>(null);
 
-  // ── Alocação de Funcionários ────────────────────────────────────────
   const [isAlocarOpen, setIsAlocarOpen] = useState(false);
-  const [alocarTarget, setAlocarTarget] = useState<Etapa | null>(null);
-  const [selectedFuncIds, setSelectedFuncIds] = useState<Set<string>>(new Set());
+  const [alocarTarget, setAlocarTarget] = useState<EtapaAPI | null>(null);
+  const [selectedFuncIds, setSelectedFuncIds] = useState<Set<number>>(new Set());
   const [alocarSearch, setAlocarSearch] = useState('');
   const [isFilterOpen, setIsFilterOpen] = useState(false);
   const [filters, setFilters] = useState({ status: 'Todos', aeronave: 'Todas' });
+  const [expandedIds, setExpandedIds] = useState<Set<number>>(new Set());
 
-  const uniqueAeronaves = Array.from(new Set(etapas.map(e => e.aeronaveCodigo)));
+  const fetchEtapas = useCallback(async () => {
+    setIsLoading(true);
+    try { const res = await api.get('/api/etapas'); setEtapas(res.data); } catch (err) { console.error('Erro:', err); } finally { setIsLoading(false); }
+  }, []);
+  const fetchFuncs = useCallback(async () => {
+    try { const res = await api.get('/api/funcionarios'); setAllFuncs(res.data); } catch (err) { console.error(err); }
+  }, []);
+  useEffect(() => { fetchEtapas(); fetchFuncs(); }, [fetchEtapas, fetchFuncs]);
+
+  const uniqueAeronaves = Array.from(new Set(etapas.filter(e => e.aeronave).map(e => e.aeronave!.codigo)));
 
   const filteredEtapas = etapas.filter(etapa => {
-    const matchesSearch = etapa.nome.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         etapa.aeronaveCodigo.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesStatus = filters.status === 'Todos' || etapa.status === filters.status;
-    const matchesAeronave = filters.aeronave === 'Todas' || etapa.aeronaveCodigo === filters.aeronave;
+    const aeroCode = etapa.aeronave?.codigo || '';
+    const matchesSearch = etapa.nome.toLowerCase().includes(searchTerm.toLowerCase()) || aeroCode.toLowerCase().includes(searchTerm.toLowerCase());
+    const matchesStatus = filters.status === 'Todos' || statusMeta[etapa.status]?.label === filters.status;
+    const matchesAeronave = filters.aeronave === 'Todas' || aeroCode === filters.aeronave;
     return matchesSearch && matchesStatus && matchesAeronave;
   });
 
-  const handleCreate = (e: React.FormEvent) => {
-    e.preventDefault();
-    const etapa: Etapa = { id: Math.random().toString(), aeronaveCodigo: novaEtapa.aeronave, nome: novaEtapa.nome, prazo: novaEtapa.prazo, status: 'Pendente', statusBadgeVariant: statusMeta['Pendente'].variant, icon: statusMeta['Pendente'].icon, isExpanded: false };
-    setEtapas([etapa, ...etapas]);
-    setIsModalOpen(false);
-    setNovaEtapa({ aeronave: '', nome: '', prazo: '' });
+  const handleCreate = async (e: React.FormEvent) => {
+    e.preventDefault(); setSubmitLoading(true);
+    try {
+      await api.post('/api/etapas', { nome: novaEtapa.nome, prazo: novaEtapa.prazo, aeronaveId: Number(novaEtapa.aeronaveId) });
+      setIsModalOpen(false); setNovaEtapa({ aeronaveId: '', nome: '', prazo: '' }); fetchEtapas();
+    } catch (err) { console.error(err); } finally { setSubmitLoading(false); }
   };
 
-  // ── Iniciar / Finalizar ─────────────────────────────────────────────
-  const handleIniciar = (id: string) => {
-    setEtapas(etapas.map(e => e.id === id ? { ...e, status: 'Em andamento' as const, statusBadgeVariant: statusMeta['Em andamento'].variant, icon: statusMeta['Em andamento'].icon, isExpanded: true } : e));
+  const handleIniciar = async (id: number) => {
+    try { await api.put(`/api/etapas/${id}`, { status: 'EM_ANDAMENTO' }); setExpandedIds(prev => new Set(prev).add(id)); fetchEtapas(); } catch (err) { console.error(err); }
   };
-  const handleFinalizar = (id: string) => {
-    setEtapas(etapas.map(e => e.id === id ? { ...e, status: 'Concluída' as const, statusBadgeVariant: statusMeta['Concluída'].variant, icon: statusMeta['Concluída'].icon, isExpanded: false } : e));
-  };
-
-  // ── Editar ──────────────────────────────────────────────────────────
-  const openEdit = (et: Etapa) => { setEditTarget(et); setEditForm({ aeronaveCodigo: et.aeronaveCodigo, nome: et.nome, prazo: et.prazo, status: et.status }); setIsEditOpen(true); };
-  const handleEdit = (e: React.FormEvent) => {
-    e.preventDefault(); if (!editTarget) return;
-    const sm = statusMeta[editForm.status] || statusMeta['Pendente'];
-    setEtapas(etapas.map(et => et.id === editTarget.id ? { ...et, aeronaveCodigo: editForm.aeronaveCodigo, nome: editForm.nome, prazo: editForm.prazo, status: editForm.status as Etapa['status'], statusBadgeVariant: sm.variant, icon: sm.icon } : et));
-    setIsEditOpen(false);
+  const handleFinalizar = async (id: number) => {
+    try { await api.put(`/api/etapas/${id}`, { status: 'CONCLUIDA' }); setExpandedIds(prev => { const n = new Set(prev); n.delete(id); return n; }); fetchEtapas(); } catch (err) { console.error(err); }
   };
 
-  // ── Excluir ─────────────────────────────────────────────────────────
-  const openDelete = (et: Etapa) => { setDeleteTarget(et); setIsDeleteOpen(true); };
-  const handleDelete = () => { if (!deleteTarget) return; setEtapas(etapas.filter(et => et.id !== deleteTarget.id)); setIsDeleteOpen(false); };
+  const openEdit = (et: EtapaAPI) => { setEditTarget(et); setEditForm({ aeronaveId: String(et.aeronaveId), nome: et.nome, prazo: et.prazo.split('T')[0], status: et.status }); setIsEditOpen(true); };
+  const handleEdit = async (e: React.FormEvent) => {
+    e.preventDefault(); if (!editTarget) return; setSubmitLoading(true);
+    try {
+      await api.put(`/api/etapas/${editTarget.id}`, { nome: editForm.nome, prazo: editForm.prazo, status: editForm.status, aeronaveId: Number(editForm.aeronaveId) });
+      setIsEditOpen(false); fetchEtapas();
+    } catch (err) { console.error(err); } finally { setSubmitLoading(false); }
+  };
 
-  // ── Alocação de Funcionários ────────────────────────────────────────
-  const openAlocar = (et: Etapa) => {
+  const openDelete = (et: EtapaAPI) => { setDeleteTarget(et); setIsDeleteOpen(true); };
+  const handleDelete = async () => {
+    if (!deleteTarget) return; setSubmitLoading(true);
+    try { await api.delete(`/api/etapas/${deleteTarget.id}`); setIsDeleteOpen(false); fetchEtapas(); } catch (err) { console.error(err); } finally { setSubmitLoading(false); }
+  };
+
+  const openAlocar = (et: EtapaAPI) => {
     setAlocarTarget(et);
-    const alreadyAllocated = new Set((et.funcionariosAlocados || []).map(f => f.id));
-    setSelectedFuncIds(alreadyAllocated);
+    const already = new Set((et.funcionarios || []).map(f => f.funcionario.id));
+    setSelectedFuncIds(already);
     setAlocarSearch('');
     setIsAlocarOpen(true);
   };
-
-  const toggleFunc = (id: string) => {
-    setSelectedFuncIds(prev => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id); else next.add(id);
-      return next;
-    });
+  const toggleFunc = (id: number) => {
+    setSelectedFuncIds(prev => { const n = new Set(prev); if (n.has(id)) n.delete(id); else n.add(id); return n; });
+  };
+  const handleAlocar = async () => {
+    if (!alocarTarget) return; setSubmitLoading(true);
+    try {
+      await api.put(`/api/etapas/${alocarTarget.id}/funcionarios`, { funcionarioIds: Array.from(selectedFuncIds) });
+      setIsAlocarOpen(false); fetchEtapas();
+    } catch (err) { console.error(err); } finally { setSubmitLoading(false); }
+  };
+  const handleDesalocar = async (etapaId: number, funcId: number) => {
+    try { await api.delete(`/api/etapas/${etapaId}/funcionarios/${funcId}`); fetchEtapas(); } catch (err) { console.error(err); }
   };
 
-  const handleAlocar = () => {
-    if (!alocarTarget) return;
-    const alocados: FuncionarioAlocado[] = mockFuncionarios
-      .filter(f => selectedFuncIds.has(f.id))
-      .map((f, i) => ({
-        id: f.id,
-        iniciais: f.iniciais,
-        nome: f.nome,
-        corVariant: corVariants[i % corVariants.length],
-      }));
-    setEtapas(etapas.map(et => et.id === alocarTarget.id
-      ? { ...et, funcionariosAlocados: alocados.length > 0 ? alocados : undefined, isExpanded: alocados.length > 0 }
-      : et
-    ));
-    setIsAlocarOpen(false);
-  };
-
-  const handleDesalocar = (etapaId: string, funcId: string) => {
-    setEtapas(etapas.map(et => {
-      if (et.id !== etapaId || !et.funcionariosAlocados) return et;
-      const updated = et.funcionariosAlocados.filter(f => f.id !== funcId);
-      return { ...et, funcionariosAlocados: updated.length > 0 ? updated : undefined, isExpanded: updated.length > 0 };
-    }));
-  };
-
-  const filteredFuncForModal = mockFuncionarios.filter(f =>
+  const filteredFuncForModal = allFuncs.filter(f =>
     f.nome.toLowerCase().includes(alocarSearch.toLowerCase()) ||
     f.usuario.toLowerCase().includes(alocarSearch.toLowerCase())
   );
+
+  const getIniciais = (nome: string) => nome.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase() || 'NO';
 
   return (
     <Layout>
@@ -205,24 +212,24 @@ const Etapas: React.FC = () => {
                     {filteredEtapas.map((etapa) => (
                       <Fragment key={etapa.id}>
                         <tr className="border-b border-outline-variant bg-surface-container-lowest hover:bg-surface-container-low transition-colors group">
-                          <td className="px-md md:px-lg py-md align-top font-code text-primary font-medium">{etapa.aeronaveCodigo}</td>
+                          <td className="px-md md:px-lg py-md align-top font-code text-primary font-medium">{etapa.aeronave?.codigo || '-'}</td>
                           <td className="px-md md:px-lg py-md align-top">
                             <div className="flex items-center gap-sm">
-                              <span className={`material-symbols-outlined ${etapa.isExpanded ? 'text-primary' : 'text-outline'} text-[20px]`}>{etapa.icon}</span>
+                              <span className={`material-symbols-outlined ${expandedIds.has(etapa.id) || etapa.status === 'EM_ANDAMENTO' ? 'text-primary' : 'text-outline'} text-[20px]`}>{statusMeta[etapa.status]?.icon || 'chevron_right'}</span>
                               <div className="font-medium text-on-surface">{etapa.nome}</div>
                             </div>
                           </td>
-                          <td className="px-md md:px-lg py-md align-top text-on-surface-variant hidden sm:table-cell">{formatDate(etapa.prazo)}</td>
-                          <td className="px-md md:px-lg py-md align-top"><span className={`inline-flex items-center px-2 py-0.5 rounded ${etapa.statusBadgeVariant} font-label-sm text-[11px] uppercase`}>{etapa.status}</span></td>
+                          <td className="px-md md:px-lg py-md align-top text-on-surface-variant hidden sm:table-cell">{formatDate(etapa.prazo.split('T')[0])}</td>
+                          <td className="px-md md:px-lg py-md align-top"><span className={`inline-flex items-center px-2 py-0.5 rounded ${statusMeta[etapa.status]?.variant || ''} font-label-sm text-[11px] uppercase`}>{statusMeta[etapa.status]?.label || etapa.status}</span></td>
                           <td className="px-md md:px-lg py-md text-right align-top">
                             <div className="flex items-center justify-end gap-xs">
-                              {etapa.status === 'Pendente' && (
+                              {etapa.status === 'PENDENTE' && (
                                 <button onClick={() => handleIniciar(etapa.id)} className="bg-primary text-on-primary hover:bg-primary-container text-label-sm px-sm py-1 rounded transition-colors flex items-center gap-xs shadow-sm">
                                   <span className="material-symbols-outlined text-[16px]">play_arrow</span>
                                   <span className="hidden lg:inline">Iniciar</span>
                                 </button>
                               )}
-                              {etapa.status === 'Em andamento' && (
+                              {etapa.status === 'EM_ANDAMENTO' && (
                                 <button onClick={() => handleFinalizar(etapa.id)} className="bg-error-container text-on-error-container hover:bg-error text-label-sm px-sm py-1 rounded transition-colors flex items-center gap-xs shadow-sm">
                                   <span className="material-symbols-outlined text-[16px]">stop</span>
                                   <span className="hidden lg:inline">Finalizar</span>
@@ -248,7 +255,7 @@ const Etapas: React.FC = () => {
                             </div>
                           </td>
                         </tr>
-                        {etapa.isExpanded && etapa.funcionariosAlocados && (
+                        {(expandedIds.has(etapa.id) || etapa.status === 'EM_ANDAMENTO') && etapa.funcionarios && etapa.funcionarios.length > 0 && (
                           <tr className="bg-surface-container-lowest border-b border-outline-variant">
                             <td className="px-md md:px-lg pb-md" colSpan={5}>
                               <div className="sm:ml-[28px] p-4 border-l-2 border-primary bg-surface-container-low rounded-r-lg flex flex-col gap-md">
@@ -256,14 +263,14 @@ const Etapas: React.FC = () => {
                                   <div className="flex-1">
                                     <h4 className="font-label-sm text-on-surface-variant uppercase mb-sm">Funcionários Alocados</h4>
                                     <div className="flex flex-wrap gap-sm">
-                                      {etapa.funcionariosAlocados.map((func) => (
-                                        <div key={func.id} className="flex items-center gap-xs bg-white px-sm py-1 rounded border border-outline-variant group/chip">
-                                          <div className={`w-6 h-6 rounded-full ${func.corVariant} flex items-center justify-center text-[10px] font-bold text-white`}>{func.iniciais}</div>
-                                          <span className="text-body-sm">{func.nome}</span>
+                                      {etapa.funcionarios.map((ef, i) => (
+                                        <div key={ef.funcionario.id} className="flex items-center gap-xs bg-white px-sm py-1 rounded border border-outline-variant group/chip">
+                                          <div className={`w-6 h-6 rounded-full ${corVariants[i % corVariants.length]} flex items-center justify-center text-[10px] font-bold text-white`}>{getIniciais(ef.funcionario.nome)}</div>
+                                          <span className="text-body-sm">{ef.funcionario.nome}</span>
                                           <button
-                                            onClick={() => handleDesalocar(etapa.id, func.id)}
+                                            onClick={() => handleDesalocar(etapa.id, ef.funcionario.id)}
                                             className="ml-xs text-outline hover:text-error transition-colors opacity-100 lg:opacity-0 group-hover/chip:opacity-100"
-                                            aria-label={`Remover ${func.nome}`}
+                                            aria-label={`Remover ${ef.funcionario.nome}`}
                                           >
                                             <span className="material-symbols-outlined text-[14px]">close</span>
                                           </button>
@@ -303,7 +310,7 @@ const Etapas: React.FC = () => {
       {/* Modal: Cadastrar */}
       <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} title="Nova Etapa">
         <form className="flex flex-col gap-md" onSubmit={handleCreate}>
-          <div className="flex flex-col gap-xs"><label className="font-label-md text-on-surface">Código Aeronave</label><input type="text" value={novaEtapa.aeronave} onChange={(e) => setNovaEtapa({...novaEtapa, aeronave: e.target.value})} className={inputCls} required /></div>
+          <div className="flex flex-col gap-xs"><label className="font-label-md text-on-surface">ID da Aeronave</label><input type="number" value={novaEtapa.aeronaveId} onChange={(e) => setNovaEtapa({...novaEtapa, aeronaveId: e.target.value})} className={inputCls} required /></div>
           <div className="flex flex-col gap-xs"><label className="font-label-md text-on-surface">Nome da etapa</label><input type="text" value={novaEtapa.nome} onChange={(e) => setNovaEtapa({...novaEtapa, nome: e.target.value})} className={inputCls} required /></div>
           <div className="flex flex-col gap-xs"><label className="font-label-md text-on-surface">Prazo</label><input type="date" value={novaEtapa.prazo} onChange={(e) => setNovaEtapa({...novaEtapa, prazo: e.target.value})} className={inputCls} required /></div>
           <div className="flex justify-end gap-sm mt-md">
@@ -316,10 +323,10 @@ const Etapas: React.FC = () => {
       {/* Modal: Editar */}
       <Modal isOpen={isEditOpen} onClose={() => setIsEditOpen(false)} title={`Editar Etapa — ${editTarget?.nome || ''}`}>
         <form className="flex flex-col gap-md" onSubmit={handleEdit}>
-          <div className="flex flex-col gap-xs"><label className="font-label-md text-on-surface">Aeronave</label><input type="text" value={editForm.aeronaveCodigo} onChange={(e) => setEditForm({...editForm, aeronaveCodigo: e.target.value})} className={inputCls} required /></div>
+          <div className="flex flex-col gap-xs"><label className="font-label-md text-on-surface">ID da Aeronave</label><input type="number" value={editForm.aeronaveId} onChange={(e) => setEditForm({...editForm, aeronaveId: e.target.value})} className={inputCls} required /></div>
           <div className="flex flex-col gap-xs"><label className="font-label-md text-on-surface">Nome da Etapa</label><input type="text" value={editForm.nome} onChange={(e) => setEditForm({...editForm, nome: e.target.value})} className={inputCls} required /></div>
           <div className="flex flex-col gap-xs"><label className="font-label-md text-on-surface">Prazo</label><input type="date" value={editForm.prazo} onChange={(e) => setEditForm({...editForm, prazo: e.target.value})} className={inputCls} required /></div>
-          <div className="flex flex-col gap-xs"><label className="font-label-md text-on-surface">Status</label><select value={editForm.status} onChange={(e) => setEditForm({...editForm, status: e.target.value})} className={inputCls} required><option value="Pendente">Pendente</option><option value="Em andamento">Em andamento</option><option value="Concluída">Concluída</option></select></div>
+          <div className="flex flex-col gap-xs"><label className="font-label-md text-on-surface">Status</label><select value={editForm.status} onChange={(e) => setEditForm({...editForm, status: e.target.value})} className={inputCls} required><option value="PENDENTE">Pendente</option><option value="EM_ANDAMENTO">Em andamento</option><option value="CONCLUIDA">Concluída</option></select></div>
           <div className="flex justify-end gap-sm mt-md">
             <button type="button" onClick={() => setIsEditOpen(false)} className="px-md py-sm rounded text-primary hover:bg-primary-fixed">Cancelar</button>
             <button type="submit" className="px-md py-sm rounded bg-primary text-on-primary hover:opacity-90">Salvar Alterações</button>
@@ -333,7 +340,7 @@ const Etapas: React.FC = () => {
           <div className="flex items-start gap-md">
             <div className="w-10 h-10 rounded-full bg-error-container flex items-center justify-center shrink-0"><span className="material-symbols-outlined text-error text-[20px]">warning</span></div>
             <div>
-              <p className="font-body-md text-body-md text-on-surface">Tem certeza que deseja excluir a etapa <strong>{deleteTarget?.nome}</strong> da aeronave <strong>{deleteTarget?.aeronaveCodigo}</strong>?</p>
+              <p className="font-body-md text-body-md text-on-surface">Tem certeza que deseja excluir a etapa <strong>{deleteTarget?.nome}</strong> da aeronave <strong>{deleteTarget?.aeronave?.codigo || '-'}</strong>?</p>
               <p className="font-body-sm text-body-sm text-on-surface-variant mt-xs">Esta ação não poderá ser desfeita.</p>
             </div>
           </div>
@@ -351,7 +358,7 @@ const Etapas: React.FC = () => {
             <span className="material-symbols-outlined text-primary text-[20px]">engineering</span>
             <div>
               <p className="font-label-sm text-label-sm text-on-surface">{alocarTarget?.nome}</p>
-              <p className="font-body-sm text-body-sm text-on-surface-variant">Aeronave: {alocarTarget?.aeronaveCodigo}</p>
+              <p className="font-body-sm text-body-sm text-on-surface-variant">Aeronave: {alocarTarget?.aeronave?.codigo || '-'}</p>
             </div>
           </div>
 
@@ -391,12 +398,12 @@ const Etapas: React.FC = () => {
                     onChange={() => toggleFunc(func.id)}
                     className="sr-only"
                   />
-                  <div className={`w-9 h-9 rounded-full ${func.iniciaisVariant} flex items-center justify-center font-label-sm text-label-sm shrink-0`}>
-                    {func.iniciais}
+                  <div className={`w-9 h-9 rounded-full bg-primary-fixed flex items-center justify-center font-label-sm text-label-sm text-on-primary-fixed shrink-0`}>
+                    {getIniciais(func.nome)}
                   </div>
                   <div className="flex-1 min-w-0">
                     <p className="font-label-md text-label-md text-on-surface truncate">{func.nome}</p>
-                    <p className="font-body-sm text-body-sm text-on-surface-variant">@{func.usuario} · {func.nivel}</p>
+                    <p className="font-body-sm text-body-sm text-on-surface-variant">@{func.usuario}</p>
                   </div>
                   <div className={`w-5 h-5 rounded border-2 flex items-center justify-center shrink-0 transition-all ${
                     isSelected ? 'bg-primary border-primary' : 'border-outline-variant'
