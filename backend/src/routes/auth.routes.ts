@@ -103,6 +103,15 @@ authRouter.post('/login', loginRateLimiter, async (req, res) => {
 });
 
 /**
+ * POST /api/auth/logout
+ * Invalida a sessão do lado do cliente.
+ * (JWT é stateless — o token é removido no frontend)
+ */
+authRouter.post('/logout', (_req, res) => {
+  res.json({ mensagem: 'Logout realizado com sucesso.' });
+});
+
+/**
  * GET /api/auth/me
  * Header: Authorization: Bearer <token>
  * Response: { funcionario }

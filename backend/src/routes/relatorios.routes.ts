@@ -106,6 +106,30 @@ relatoriosRouter.post('/', autorizar('ADMINISTRADOR', 'ENGENHEIRO'), async (req,
   }
 });
 
+/** GET /api/relatorios/:id/download — Download do relatório em TXT */
+relatoriosRouter.get('/:id/download', async (req, res) => {
+  try {
+    const relatorio = await prisma.relatorio.findUnique({
+      where: { id: Number(req.params.id) },
+    });
+
+    if (!relatorio) {
+      res.status(404).json({ error: 'Relatório não encontrado' });
+      return;
+    }
+
+    const conteudo = relatorio.conteudo || 'Relatório sem conteúdo.';
+    const nomeArquivo = relatorio.nomeArquivo || `relatorio_${relatorio.id}.txt`;
+
+    res.setHeader('Content-Type', 'text/plain; charset=utf-8');
+    res.setHeader('Content-Disposition', `attachment; filename="${nomeArquivo}"`);
+    res.send(conteudo);
+  } catch (error) {
+    console.error('Erro ao baixar relatório:', error);
+    res.status(500).json({ error: 'Erro ao baixar relatório' });
+  }
+});
+
 /** DELETE /api/relatorios/:id */
 relatoriosRouter.delete('/:id', autorizar('ADMINISTRADOR'), async (req, res) => {
   try {
