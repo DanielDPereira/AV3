@@ -126,9 +126,14 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       sessionStorage.setItem('aerocode_usuario', JSON.stringify(usuarioAutenticado));
 
       return { sucesso: true, mensagem: `Bem-vindo, ${funcionario.nome}!` };
-    } catch (apiError) {
-      // Fallback para autenticação local (dev/demo)
-      console.warn('API indisponível, usando autenticação local:', apiError);
+    } catch (apiError: any) {
+      // Se a API retornou um erro (ex: 401 Credenciais, 429 Rate Limit)
+      if (apiError.response && apiError.response.data && apiError.response.data.error) {
+        return { sucesso: false, mensagem: apiError.response.data.error };
+      }
+
+      // Fallback para autenticação local APENAS se a API estiver fora do ar (Network Error)
+      console.warn('API indisponível (offline), usando autenticação local:', apiError);
 
       const func = funcionariosDB.find(f => f.usuario === login);
       if (!func) {
@@ -151,7 +156,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       setUsuario(usuarioAutenticado);
       sessionStorage.setItem('aerocode_usuario', JSON.stringify(usuarioAutenticado));
 
-      return { sucesso: true, mensagem: `Bem-vindo, ${func.nome}!` };
+      return { sucesso: true, mensagem: `Bem-vindo, ${func.nome}! (Modo Offline)` };
     }
   }, []);
 

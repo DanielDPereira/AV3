@@ -65,6 +65,13 @@ authRouter.post('/login', loginRateLimiter, async (req, res) => {
       return;
     }
 
+    // O MySQL busca sem diferenciar maiúsculas e minúsculas (case-insensitive).
+    // Para forçar que o login seja case-sensitive, fazemos uma validação estrita no código:
+    if (funcionario.usuario !== usuario) {
+      res.status(401).json({ error: 'Credenciais inválidas. Usuário não encontrado.' });
+      return;
+    }
+
     // Verifica senha com bcrypt
     const senhaValida = await bcrypt.compare(senha, funcionario.senhaHash);
     if (!senhaValida) {
