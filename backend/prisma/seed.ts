@@ -212,13 +212,50 @@ async function main() {
   // ── 6. Relatórios ──────────────────────────────────────
   console.log('📊 Criando relatórios...');
 
+  const aeronavesCriadas = await prisma.aeronave.findMany({
+    include: {
+      pecas: true,
+      etapas: {
+        include: { funcionarios: { include: { funcionario: { select: { nome: true } } } } }
+      },
+      testes: true,
+    }
+  });
+
+  const dataISO = new Date().toISOString();
+
+  const dataRelatorios = aeronavesCriadas.map(aeronave => {
+    const linhas = [
+      `══════════════════════════════════════`,
+      `  RELATÓRIO DA AERONAVE: ${aeronave.codigo}`,
+      `  Modelo: ${aeronave.modelo}`,
+      `  Tipo: ${aeronave.tipo} | Capacidade: ${aeronave.capacidade} | Alcance: ${aeronave.alcance}km`,
+      `══════════════════════════════════════`,
+      ``,
+      `── PEÇAS (${aeronave.pecas.length}) ──────────────`,
+      ...aeronave.pecas.map(p => `  • ${p.nome} [${p.tipo}] — ${p.fornecedor} — Status: ${p.status}`),
+      ``,
+      `── ETAPAS (${aeronave.etapas.length}) ─────────────`,
+      ...aeronave.etapas.map(e => {
+        const funcionarios = e.funcionarios.map(f => f.funcionario.nome).join(', ') || 'Sem alocação';
+        return `  • ${e.nome} — ${e.status} — Prazo: ${e.prazo.toISOString().split('T')[0]} — Responsáveis: ${funcionarios}`;
+      }),
+      ``,
+      `── TESTES (${aeronave.testes.length}) ─────────────`,
+      ...aeronave.testes.map(t => `  • ${t.tipo} — Resultado: ${t.resultado}`),
+      ``,
+      `── Gerado em: ${dataISO} ──`,
+    ];
+
+    return {
+      nomeArquivo: `relatorio_${aeronave.codigo}.txt`,
+      aeronaveId: aeronave.id,
+      conteudo: linhas.join('\n'),
+    };
+  });
+
   await prisma.relatorio.createMany({
-    data: [
-      { nomeArquivo: 'relatorio_AC-737-MAX.txt', aeronaveId: aero1.id },
-      { nomeArquivo: 'relatorio_AC-A320-NEO.txt', aeronaveId: aero2.id },
-      { nomeArquivo: 'relatorio_AC-C130-J.txt', aeronaveId: aero3.id },
-      { nomeArquivo: 'relatorio_AC-E195-E2.txt', aeronaveId: aero4.id },
-    ],
+    data: dataRelatorios,
     skipDuplicates: true,
   });
   console.log('  ✅ 4 relatórios criados\n');
