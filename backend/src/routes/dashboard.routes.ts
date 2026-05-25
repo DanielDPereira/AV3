@@ -43,7 +43,7 @@ dashboardRouter.get('/recent-aircrafts', async (_req, res) => {
     });
 
     // Transforma para o formato esperado pelo frontend
-    const result = aeronaves.map(a => ({
+    const result = aeronaves.map((a: any) => ({
       id: String(a.id),
       identifier: a.codigo,
       model: a.modelo,

@@ -80,7 +80,7 @@ authRouter.post('/login', loginRateLimiter, async (req, res) => {
         nivelPermissao: funcionario.nivelPermissao,
       },
       process.env.JWT_SECRET || 'fallback-secret',
-      { expiresIn: process.env.JWT_EXPIRES_IN || '24h' }
+      { expiresIn: (process.env.JWT_EXPIRES_IN || '24h') as any }
     );
 
     // Retorna dados do funcionário (sem a senha)

@@ -5,6 +5,16 @@
 import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
+import helmet from 'helmet';
+import rateLimit from 'express-rate-limit';
+import swaggerUi from 'swagger-ui-express';
+import fs from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+const swaggerDocument = JSON.parse(fs.readFileSync(path.join(__dirname, 'swagger.json'), 'utf8'));
 
 import { authRouter } from './routes/auth.routes.js';
 import { aeronavesRouter } from './routes/aeronaves.routes.js';
@@ -25,7 +35,24 @@ app.use(cors({
   origin: process.env.CORS_ORIGIN || '*',
   credentials: true,
 }));
+
+// ── Hardening de Segurança (Helmet) ──────────────────────
+app.use(helmet());
+
+// ── Rate Limiting (Proteção contra DDoS / Brute Force) ───
+const limiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutos
+  max: 100, // Limite de 100 requisições por IP a cada 15 minutos
+  message: { error: 'Muitas requisições deste IP, tente novamente mais tarde.' },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+app.use('/api', limiter);
+
 app.use(express.json());
+
+// ── Documentação (Swagger) ───────────────────────────────
+app.use('/api/docs', swaggerUi.serve, swaggerUi.setup(swaggerDocument));
 
 // ── Health check ─────────────────────────────────────────
 app.get('/api/health', (_req, res) => {

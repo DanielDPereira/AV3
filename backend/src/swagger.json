@@ -1,0 +1,290 @@
+{
+  "openapi": "3.0.0",
+  "info": {
+    "title": "Aerocode API",
+    "description": "API para o sistema de gerenciamento de aeronaves Aerocode V3.",
+    "version": "3.0.0"
+  },
+  "servers": [
+    {
+      "url": "/api",
+      "description": "API Base URL"
+    }
+  ],
+  "components": {
+    "securitySchemes": {
+      "bearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT"
+      }
+    }
+  },
+  "security": [
+    {
+      "bearerAuth": []
+    }
+  ],
+  "paths": {
+    "/auth/login": {
+      "post": {
+        "tags": ["Autenticação"],
+        "summary": "Realiza o login do usuário",
+        "security": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "usuario": { "type": "string" },
+                  "senha": { "type": "string" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "Login realizado com sucesso" },
+          "401": { "description": "Credenciais inválidas" }
+        }
+      }
+    },
+    "/auth/logout": {
+      "post": {
+        "tags": ["Autenticação"],
+        "summary": "Realiza o logout do usuário",
+        "responses": {
+          "200": { "description": "Logout realizado com sucesso" }
+        }
+      }
+    },
+    "/auth/me": {
+      "get": {
+        "tags": ["Autenticação"],
+        "summary": "Retorna os dados do usuário logado",
+        "responses": {
+          "200": { "description": "Dados do usuário" }
+        }
+      }
+    },
+    "/aeronaves": {
+      "get": {
+        "tags": ["Aeronaves"],
+        "summary": "Lista todas as aeronaves",
+        "responses": {
+          "200": { "description": "Lista de aeronaves" }
+        }
+      },
+      "post": {
+        "tags": ["Aeronaves"],
+        "summary": "Cria uma nova aeronave",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "codigo": { "type": "string" },
+                  "modelo": { "type": "string" },
+                  "tipo": { "type": "string" },
+                  "capacidade": { "type": "number" },
+                  "alcance": { "type": "number" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": { "description": "Aeronave criada" }
+        }
+      }
+    },
+    "/aeronaves/{id}": {
+      "get": {
+        "tags": ["Aeronaves"],
+        "summary": "Detalhes de uma aeronave",
+        "parameters": [
+          { "name": "id", "in": "path", "required": true, "schema": { "type": "integer" } }
+        ],
+        "responses": {
+          "200": { "description": "Detalhes da aeronave" },
+          "404": { "description": "Aeronave não encontrada" }
+        }
+      },
+      "put": {
+        "tags": ["Aeronaves"],
+        "summary": "Atualiza uma aeronave",
+        "parameters": [
+          { "name": "id", "in": "path", "required": true, "schema": { "type": "integer" } }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "codigo": { "type": "string" },
+                  "modelo": { "type": "string" },
+                  "tipo": { "type": "string" },
+                  "capacidade": { "type": "number" },
+                  "alcance": { "type": "number" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "Aeronave atualizada" }
+        }
+      },
+      "delete": {
+        "tags": ["Aeronaves"],
+        "summary": "Exclui uma aeronave",
+        "parameters": [
+          { "name": "id", "in": "path", "required": true, "schema": { "type": "integer" } }
+        ],
+        "responses": {
+          "204": { "description": "Aeronave excluída" }
+        }
+      }
+    },
+    "/pecas": {
+      "get": { "tags": ["Peças"], "summary": "Lista todas as peças", "responses": { "200": { "description": "OK" } } },
+      "post": {
+        "tags": ["Peças"], "summary": "Cria uma nova peça",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "nome": { "type": "string" },
+                  "tipo": { "type": "string" },
+                  "fornecedor": { "type": "string" },
+                  "status": { "type": "string" },
+                  "aeronaveId": { "type": "integer" }
+                }
+              }
+            }
+          }
+        },
+        "responses": { "201": { "description": "Criada" } }
+      }
+    },
+    "/pecas/{id}": {
+      "put": {
+        "tags": ["Peças"], "summary": "Atualiza uma peça",
+        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "integer" } }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "nome": { "type": "string" },
+                  "tipo": { "type": "string" },
+                  "fornecedor": { "type": "string" },
+                  "status": { "type": "string" },
+                  "aeronaveId": { "type": "integer" }
+                }
+              }
+            }
+          }
+        },
+        "responses": { "200": { "description": "Atualizada" } }
+      },
+      "delete": {
+        "tags": ["Peças"], "summary": "Remove uma peça",
+        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "integer" } }],
+        "responses": { "204": { "description": "Removida" } }
+      }
+    },
+    "/etapas": {
+      "get": { "tags": ["Etapas"], "summary": "Lista etapas", "responses": { "200": { "description": "OK" } } },
+      "post": {
+        "tags": ["Etapas"], "summary": "Cria etapa",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "nome": { "type": "string" },
+                  "prazo": { "type": "string", "format": "date-time" },
+                  "status": { "type": "string" },
+                  "aeronaveId": { "type": "integer" }
+                }
+              }
+            }
+          }
+        },
+        "responses": { "201": { "description": "Criada" } }
+      }
+    },
+    "/etapas/{id}": {
+      "put": {
+        "tags": ["Etapas"], "summary": "Atualiza etapa",
+        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "integer" } }],
+        "responses": { "200": { "description": "Atualizada" } }
+      },
+      "delete": {
+        "tags": ["Etapas"], "summary": "Exclui etapa",
+        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "integer" } }],
+        "responses": { "204": { "description": "Removida" } }
+      }
+    },
+    "/testes": {
+      "get": { "tags": ["Testes"], "summary": "Lista testes", "responses": { "200": { "description": "OK" } } },
+      "post": { "tags": ["Testes"], "summary": "Cria teste", "responses": { "201": { "description": "Criado" } } }
+    },
+    "/testes/{id}": {
+      "put": {
+        "tags": ["Testes"], "summary": "Atualiza teste",
+        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "integer" } }],
+        "responses": { "200": { "description": "Atualizado" } }
+      },
+      "delete": {
+        "tags": ["Testes"], "summary": "Exclui teste",
+        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "integer" } }],
+        "responses": { "204": { "description": "Removido" } }
+      }
+    },
+    "/funcionarios": {
+      "get": { "tags": ["Funcionários"], "summary": "Lista funcionários", "responses": { "200": { "description": "OK" } } },
+      "post": { "tags": ["Funcionários"], "summary": "Cria funcionário", "responses": { "201": { "description": "Criado" } } }
+    },
+    "/funcionarios/{id}": {
+      "put": {
+        "tags": ["Funcionários"], "summary": "Atualiza funcionário",
+        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "integer" } }],
+        "responses": { "200": { "description": "Atualizado" } }
+      },
+      "delete": {
+        "tags": ["Funcionários"], "summary": "Exclui funcionário",
+        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "integer" } }],
+        "responses": { "204": { "description": "Removido" } }
+      }
+    },
+    "/relatorios": {
+      "get": { "tags": ["Relatórios"], "summary": "Lista relatórios", "responses": { "200": { "description": "OK" } } },
+      "post": { "tags": ["Relatórios"], "summary": "Gera relatório", "responses": { "201": { "description": "Gerado" } } }
+    },
+    "/relatorios/{id}": {
+      "get": {
+        "tags": ["Relatórios"], "summary": "Visualiza relatório",
+        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "integer" } }],
+        "responses": { "200": { "description": "OK" } }
+      }
+    },
+    "/dashboard/stats": {
+      "get": { "tags": ["Dashboard"], "summary": "Obtém estatísticas gerais", "responses": { "200": { "description": "OK" } } }
+    }
+  }
+}
