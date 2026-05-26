@@ -31,10 +31,10 @@ const app = express();
 const PORT = process.env.PORT || 3001;
 
 // ── Middlewares globais ──────────────────────────────────
-const corsOrigin = process.env.CORS_ORIGIN || '*';
+const corsOrigin = process.env.CORS_ORIGIN || 'http://localhost:5173';
 app.use(cors({
   origin: corsOrigin,
-  credentials: corsOrigin !== '*',
+  credentials: true,
 }));
 
 // ── Hardening de Segurança (Helmet) ──────────────────────
