@@ -298,17 +298,10 @@ Retorna o conteúdo do relatório como `text/plain`, pronto para download.
 
 ```json
 {
-  "totalAeronaves": 4,
-  "totalPecas": 4,
-  "totalEtapas": 4,
-  "totalTestes": 4,
-  "totalFuncionarios": 4,
-  "totalRelatorios": 4,
-  "etapasPendentes": 2,
-  "etapasAndamento": 1,
-  "etapasConcluidas": 1,
-  "testesAprovados": 3,
-  "testesReprovados": 1
+  "aircrafts": 4,
+  "parts": 4,
+  "stages": 4,
+  "tests": 4
 }
 ```
 

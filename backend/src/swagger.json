@@ -55,6 +55,7 @@
       "post": {
         "tags": ["Autenticação"],
         "summary": "Realiza o logout do usuário",
+        "security": [],
         "responses": {
           "200": { "description": "Logout realizado com sucesso" }
         }
@@ -283,8 +284,32 @@
         "responses": { "200": { "description": "OK" } }
       }
     },
+    "/relatorios/{id}/download": {
+      "get": {
+        "tags": ["Relatórios"],
+        "summary": "Baixa relatório em TXT",
+        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "integer" } }],
+        "responses": {
+          "200": {
+            "description": "Conteúdo do relatório",
+            "content": {
+              "text/plain": {
+                "schema": { "type": "string" }
+              }
+            }
+          }
+        }
+      }
+    },
     "/dashboard/stats": {
       "get": { "tags": ["Dashboard"], "summary": "Obtém estatísticas gerais", "responses": { "200": { "description": "OK" } } }
+    },
+    "/dashboard/recent-aircrafts": {
+      "get": {
+        "tags": ["Dashboard"],
+        "summary": "Obtém aeronaves recentes",
+        "responses": { "200": { "description": "OK" } }
+      }
     }
   }
 }

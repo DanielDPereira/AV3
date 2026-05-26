@@ -3,11 +3,24 @@
 // ═══════════════════════════════════════════════════════════
 
 import { Router } from 'express';
+import { Prisma } from '@prisma/client';
 import { prisma } from '../lib/prisma.js';
 import { autenticar, autorizar } from '../middlewares/auth.middleware.js';
 
 export const relatoriosRouter = Router();
 relatoriosRouter.use(autenticar);
+
+type AeronaveComRelacoesParaRelatorio = Prisma.AeronaveGetPayload<{
+  include: {
+    pecas: true;
+    etapas: {
+      include: {
+        funcionarios: { include: { funcionario: { select: { nome: true } } } };
+      };
+    };
+    testes: true;
+  };
+}>;
 
 /** GET /api/relatorios */
 relatoriosRouter.get('/', async (_req, res) => {
@@ -49,7 +62,7 @@ relatoriosRouter.post('/', autorizar('ADMINISTRADOR', 'ENGENHEIRO'), async (req,
     }
 
     // Busca a aeronave com todas as relações para gerar o conteúdo
-    const aeronave = await prisma.aeronave.findUnique({
+    const aeronave: AeronaveComRelacoesParaRelatorio | null = await prisma.aeronave.findUnique({
       where: { id: Number(aeronaveId) },
       include: {
         pecas: true,
@@ -76,16 +89,16 @@ relatoriosRouter.post('/', autorizar('ADMINISTRADOR', 'ENGENHEIRO'), async (req,
       `══════════════════════════════════════`,
       ``,
       `── PEÇAS (${aeronave.pecas.length}) ──────────────`,
-      ...aeronave.pecas.map((p: any) => `  • ${p.nome} [${p.tipo}] — ${p.fornecedor} — Status: ${p.status}`),
+      ...aeronave.pecas.map((p) => `  • ${p.nome} [${p.tipo}] — ${p.fornecedor} — Status: ${p.status}`),
       ``,
       `── ETAPAS (${aeronave.etapas.length}) ─────────────`,
-      ...aeronave.etapas.map((e: any) => {
-        const funcionarios = e.funcionarios.map((f: any) => f.funcionario.nome).join(', ') || 'Sem alocação';
+      ...aeronave.etapas.map((e) => {
+        const funcionarios = e.funcionarios.map((f) => f.funcionario.nome).join(', ') || 'Sem alocação';
         return `  • ${e.nome} — ${e.status} — Prazo: ${e.prazo.toISOString().split('T')[0]} — Responsáveis: ${funcionarios}`;
       }),
       ``,
       `── TESTES (${aeronave.testes.length}) ─────────────`,
-      ...aeronave.testes.map((t: any) => `  • ${t.tipo} — Resultado: ${t.resultado}`),
+      ...aeronave.testes.map((t) => `  • ${t.tipo} — Resultado: ${t.resultado}`),
       ``,
       `── Gerado em: ${new Date().toISOString()} ──`,
     ];

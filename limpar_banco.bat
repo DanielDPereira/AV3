@@ -3,8 +3,8 @@ echo ========================================================
 echo   Aerocode V3 - Reset de Banco de Dados
 echo ========================================================
 echo.
-echo Atenção: Todos os dados cadastrados serao APAGADOS e 
-echo os dados de exemplo (Seed) serao recriados.
+echo Atenção: Todos os dados cadastrados serão APAGADOS e 
+echo os dados de exemplo (Seed) serão recriados.
 echo.
 pause
 

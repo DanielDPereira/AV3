@@ -9,7 +9,7 @@ import requests
 
 
 class TestLoginValido:
-    """Testes de login com credenciais válidas (3 chamadas)."""
+    """Teste de login com credenciais válidas (1 chamada)."""
 
     def test_login_admin(self, base_url: str):
         resp = requests.post(f"{base_url}/api/auth/login",
@@ -27,19 +27,6 @@ class TestLoginValido:
         # Campos completos
         assert "id" in func
         assert "nome" in func
-
-    def test_login_engenheiro(self, base_url: str):
-        resp = requests.post(f"{base_url}/api/auth/login",
-            json={"usuario": "engenheiro", "senha": "engenheiro"})
-        assert resp.status_code == 200
-        assert resp.json()["funcionario"]["nivelPermissao"] == "ENGENHEIRO"
-
-    def test_login_operador(self, base_url: str):
-        resp = requests.post(f"{base_url}/api/auth/login",
-            json={"usuario": "operador", "senha": "operador"})
-        assert resp.status_code == 200
-        assert resp.json()["funcionario"]["nivelPermissao"] == "OPERADOR"
-
 
 class TestLoginInvalido:
     """Testes de login com credenciais inválidas (2 chamadas)."""

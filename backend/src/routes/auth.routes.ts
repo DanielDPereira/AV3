@@ -80,6 +80,7 @@ authRouter.post('/login', loginRateLimiter, async (req, res) => {
     }
 
     // Gera token JWT
+    const expiresIn = (process.env.JWT_EXPIRES_IN || '24h') as jwt.SignOptions['expiresIn'];
     const token = jwt.sign(
       {
         id: funcionario.id,
@@ -87,7 +88,7 @@ authRouter.post('/login', loginRateLimiter, async (req, res) => {
         nivelPermissao: funcionario.nivelPermissao,
       },
       process.env.JWT_SECRET || 'fallback-secret',
-      { expiresIn: (process.env.JWT_EXPIRES_IN || '24h') as any }
+      { expiresIn }
     );
 
     // Retorna dados do funcionário (sem a senha)
