@@ -26,6 +26,7 @@ const getStatusClasses = (status: DashboardAircraft['status']) => {
 const Dashboard: React.FC = () => {
   const [stats, setStats] = useState<DashboardStats>(fallbackStats);
   const [aircrafts, setAircrafts] = useState<DashboardAircraft[]>(fallbackAircrafts);
+  const [allAircrafts, setAllAircrafts] = useState<{id: number, codigo: string}[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
   // States for Modals
@@ -42,12 +43,14 @@ const Dashboard: React.FC = () => {
   const fetchData = useCallback(async () => {
     setIsLoading(true);
     try {
-      const [statsRes, aircraftsRes] = await Promise.all([
+      const [statsRes, aircraftsRes, allAeroRes] = await Promise.all([
         api.get('/api/dashboard/stats'),
         api.get('/api/dashboard/recent-aircrafts'),
+        api.get('/api/aeronaves'),
       ]);
       setStats(statsRes.data);
       setAircrafts(aircraftsRes.data);
+      setAllAircrafts(allAeroRes.data);
     } catch (err) {
       console.warn('Dashboard: API indisponível, usando fallback', err);
     } finally {
@@ -277,8 +280,13 @@ const Dashboard: React.FC = () => {
       <Modal isOpen={isModalPecaOpen} onClose={() => setIsModalPecaOpen(false)} title="Adicionar Peça a uma Aeronave">
         <form className="flex flex-col gap-md" onSubmit={handleCreatePeca}>
           <div className="flex flex-col gap-xs">
-            <label className="font-label-md text-on-surface">ID da Aeronave alvo</label>
-            <input type="number" value={novaPeca.aeronaveId} onChange={(e) => setNovaPeca({...novaPeca, aeronaveId: e.target.value})} className={inputCls} placeholder="Opcional" />
+            <label className="font-label-md text-on-surface">Aeronave alvo</label>
+            <select value={novaPeca.aeronaveId} onChange={(e) => setNovaPeca({...novaPeca, aeronaveId: e.target.value})} className={inputCls}>
+              <option value="">Nenhuma (Peça avulsa)</option>
+              {allAircrafts.map(a => (
+                <option key={a.id} value={a.id}>{a.codigo}</option>
+              ))}
+            </select>
           </div>
           <div className="flex flex-col gap-xs">
             <label className="font-label-md text-on-surface">Nome do componente</label>
@@ -307,8 +315,13 @@ const Dashboard: React.FC = () => {
       <Modal isOpen={isModalEtapaOpen} onClose={() => setIsModalEtapaOpen(false)} title="Nova Etapa">
         <form className="flex flex-col gap-md" onSubmit={handleCreateEtapa}>
           <div className="flex flex-col gap-xs">
-            <label className="font-label-md text-on-surface">ID da Aeronave</label>
-            <input type="number" value={novaEtapa.aeronaveId} onChange={(e) => setNovaEtapa({...novaEtapa, aeronaveId: e.target.value})} className={inputCls} required />
+            <label className="font-label-md text-on-surface">Aeronave alvo</label>
+            <select value={novaEtapa.aeronaveId} onChange={(e) => setNovaEtapa({...novaEtapa, aeronaveId: e.target.value})} className={inputCls} required>
+              <option value="" disabled>Selecione uma aeronave...</option>
+              {allAircrafts.map(a => (
+                <option key={a.id} value={a.id}>{a.codigo}</option>
+              ))}
+            </select>
           </div>
           <div className="flex flex-col gap-xs">
             <label className="font-label-md text-on-surface">Nome da etapa</label>

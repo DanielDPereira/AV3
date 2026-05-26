@@ -3,11 +3,24 @@
 // ═══════════════════════════════════════════════════════════
 
 import { Router } from 'express';
+import { Prisma } from '@prisma/client';
 import { prisma } from '../lib/prisma.js';
 import { autenticar, autorizar } from '../middlewares/auth.middleware.js';
 
 export const relatoriosRouter = Router();
 relatoriosRouter.use(autenticar);
+
+type AeronaveComRelacoesParaRelatorio = Prisma.AeronaveGetPayload<{
+  include: {
+    pecas: true;
+    etapas: {
+      include: {
+        funcionarios: { include: { funcionario: { select: { nome: true } } } };
+      };
+    };
+    testes: true;
+  };
+}>;
 
 /** GET /api/relatorios */
 relatoriosRouter.get('/', async (_req, res) => {
@@ -49,7 +62,7 @@ relatoriosRouter.post('/', autorizar('ADMINISTRADOR', 'ENGENHEIRO'), async (req,
     }
 
     // Busca a aeronave com todas as relações para gerar o conteúdo
-    const aeronave = await prisma.aeronave.findUnique({
+    const aeronave: AeronaveComRelacoesParaRelatorio | null = await prisma.aeronave.findUnique({
       where: { id: Number(aeronaveId) },
       include: {
         pecas: true,
@@ -76,16 +89,16 @@ relatoriosRouter.post('/', autorizar('ADMINISTRADOR', 'ENGENHEIRO'), async (req,
       `══════════════════════════════════════`,
       ``,
       `── PEÇAS (${aeronave.pecas.length}) ──────────────`,
-      ...aeronave.pecas.map(p => `  • ${p.nome} [${p.tipo}] — ${p.fornecedor} — Status: ${p.status}`),
+      ...aeronave.pecas.map((p) => `  • ${p.nome} [${p.tipo}] — ${p.fornecedor} — Status: ${p.status}`),
       ``,
       `── ETAPAS (${aeronave.etapas.length}) ─────────────`,
-      ...aeronave.etapas.map(e => {
-        const funcionarios = e.funcionarios.map(f => f.funcionario.nome).join(', ') || 'Sem alocação';
+      ...aeronave.etapas.map((e) => {
+        const funcionarios = e.funcionarios.map((f) => f.funcionario.nome).join(', ') || 'Sem alocação';
         return `  • ${e.nome} — ${e.status} — Prazo: ${e.prazo.toISOString().split('T')[0]} — Responsáveis: ${funcionarios}`;
       }),
       ``,
       `── TESTES (${aeronave.testes.length}) ─────────────`,
-      ...aeronave.testes.map(t => `  • ${t.tipo} — Resultado: ${t.resultado}`),
+      ...aeronave.testes.map((t) => `  • ${t.tipo} — Resultado: ${t.resultado}`),
       ``,
       `── Gerado em: ${new Date().toISOString()} ──`,
     ];
@@ -103,6 +116,30 @@ relatoriosRouter.post('/', autorizar('ADMINISTRADOR', 'ENGENHEIRO'), async (req,
   } catch (error) {
     console.error('Erro ao gerar relatório:', error);
     res.status(500).json({ error: 'Erro ao gerar relatório' });
+  }
+});
+
+/** GET /api/relatorios/:id/download — Download do relatório em TXT */
+relatoriosRouter.get('/:id/download', async (req, res) => {
+  try {
+    const relatorio = await prisma.relatorio.findUnique({
+      where: { id: Number(req.params.id) },
+    });
+
+    if (!relatorio) {
+      res.status(404).json({ error: 'Relatório não encontrado' });
+      return;
+    }
+
+    const conteudo = relatorio.conteudo || 'Relatório sem conteúdo.';
+    const nomeArquivo = relatorio.nomeArquivo || `relatorio_${relatorio.id}.txt`;
+
+    res.setHeader('Content-Type', 'text/plain; charset=utf-8');
+    res.setHeader('Content-Disposition', `attachment; filename="${nomeArquivo}"`);
+    res.send(conteudo);
+  } catch (error) {
+    console.error('Erro ao baixar relatório:', error);
+    res.status(500).json({ error: 'Erro ao baixar relatório' });
   }
 });
 

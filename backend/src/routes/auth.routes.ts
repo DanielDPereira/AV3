@@ -65,6 +65,13 @@ authRouter.post('/login', loginRateLimiter, async (req, res) => {
       return;
     }
 
+    // O MySQL busca sem diferenciar maiúsculas e minúsculas (case-insensitive).
+    // Para forçar que o login seja case-sensitive, fazemos uma validação estrita no código:
+    if (funcionario.usuario !== usuario) {
+      res.status(401).json({ error: 'Credenciais inválidas. Usuário não encontrado.' });
+      return;
+    }
+
     // Verifica senha com bcrypt
     const senhaValida = await bcrypt.compare(senha, funcionario.senhaHash);
     if (!senhaValida) {
@@ -73,6 +80,7 @@ authRouter.post('/login', loginRateLimiter, async (req, res) => {
     }
 
     // Gera token JWT
+    const expiresIn = (process.env.JWT_EXPIRES_IN || '24h') as jwt.SignOptions['expiresIn'];
     const token = jwt.sign(
       {
         id: funcionario.id,
@@ -80,7 +88,7 @@ authRouter.post('/login', loginRateLimiter, async (req, res) => {
         nivelPermissao: funcionario.nivelPermissao,
       },
       process.env.JWT_SECRET || 'fallback-secret',
-      { expiresIn: process.env.JWT_EXPIRES_IN || '24h' }
+      { expiresIn }
     );
 
     // Retorna dados do funcionário (sem a senha)
@@ -100,6 +108,15 @@ authRouter.post('/login', loginRateLimiter, async (req, res) => {
     console.error('Erro no login:', error);
     res.status(500).json({ error: 'Erro interno do servidor' });
   }
+});
+
+/**
+ * POST /api/auth/logout
+ * Invalida a sessão do lado do cliente.
+ * (JWT é stateless — o token é removido no frontend)
+ */
+authRouter.post('/logout', (_req, res) => {
+  res.json({ mensagem: 'Logout realizado com sucesso.' });
 });
 
 /**

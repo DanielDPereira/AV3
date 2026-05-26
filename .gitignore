@@ -4,11 +4,20 @@
 
 # Dependencies
 node_modules/
+.pnp.*
+.yarn/*
+!.yarn/patches
+!.yarn/plugins
+!.yarn/releases
+!.yarn/sdks
+!.yarn/versions
 
 # Environment
 .env
 .env.local
 .env.*.local
+.env.development
+.env.production
 
 # Build output
 dist/
@@ -23,16 +32,38 @@ build/
 # OS
 .DS_Store
 Thumbs.db
+desktop.ini
 
 # Logs
 *.log
 npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Testing & Coverage
+coverage/
+.nyc_output/
+
+# TypeScript / Linters
+*.tsbuildinfo
+.eslintcache
 
 # Docker volumes
 mysql_data/
 
 # Prisma
 backend/prisma/migrations/**/migration_lock.toml
+
+# Python / Pytest (Testes E2E e Scripts)
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+.venv/
+venv/
+env/
+.coverage
 
 # Context files (reference only — not part of the project)
 contexto av1 e av2/
