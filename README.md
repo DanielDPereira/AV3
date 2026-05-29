@@ -240,6 +240,23 @@ docker exec -it aerocode-api npx prisma db seed
 | `docker compose down -v` | Parar, remover containers **e volumes** (limpa o banco) |
 | `docker exec -it aerocode-api npx prisma studio` | Interface visual do banco de dados |
 
+### Limpeza e Reset do Banco de Dados
+
+Caso precise resetar o banco de dados para o estado de fábrica (limpar registros antigos, corrigir falhas de estado ou limpar execuções de testes pesados), disponibilizamos scripts automatizados de limpeza para diferentes sistemas operacionais.
+
+Eles irão parar a aplicação, deletar os volumes persistentes, recriar a infraestrutura limpa e rodar novamente as migrações e o *seed* oficial.
+
+- **No Windows (PowerShell/CMD):**
+  ```cmd
+  .\limpar_banco.bat
+  ```
+
+- **No Linux ou macOS (Bash):**
+  ```bash
+  chmod +x limpar_banco.sh
+  ./limpar_banco.sh
+  ```
+
 ---
 
 ## 🔑 Credenciais de Acesso
@@ -306,6 +323,8 @@ AV3/
 ├── .gitignore
 ├── LICENSE                         # Licença MIT
 ├── README.md
+├── limpar_banco.bat                # Script de Hard Reset do banco de dados (Windows)
+├── limpar_banco.sh                 # Script de Hard Reset do banco de dados (Linux/macOS)
 │
 ├── backend/                        # API REST — Node.js + Express + TypeScript
 │   ├── Dockerfile
