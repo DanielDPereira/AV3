@@ -52,6 +52,23 @@ app.use('/api', limiter);
 
 app.use(express.json());
 
+// ── Middleware de Medição de Tempo de Processamento ──────
+app.use((req, res, next) => {
+  const start = process.hrtime();
+
+  const originalSend = res.send;
+  res.send = function (body) {
+    if (!res.getHeader('X-Processing-Time')) {
+      const diff = process.hrtime(start);
+      const time = diff[0] * 1e3 + diff[1] * 1e-6;
+      res.setHeader('X-Processing-Time', time.toFixed(3));
+    }
+    return originalSend.call(this, body);
+  };
+
+  next();
+});
+
 // ── Documentação (Swagger) ───────────────────────────────
 app.use('/api/docs', swaggerUi.serve, swaggerUi.setup(swaggerDocument));
 
