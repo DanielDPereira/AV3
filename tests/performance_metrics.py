@@ -81,7 +81,15 @@ def test_scenario(num_users):
     
     return summary
 
+def warm_up():
+    print("--- Aquecendo o servidor (Warm-up) ---")
+    # Fazemos algumas requisições para abrir as conexões e subir o banco em memória
+    for _ in range(2):
+        for route in ROUTES:
+            make_request(route)
+
 def main():
+    warm_up()
     scenarios = [1, 5, 10]
     data_by_metric = {
         "response_time": {1: [], 5: [], 10: []},
@@ -138,7 +146,7 @@ def main():
     plt.savefig(os.path.join(output_dir, "grafico_processamento.png"))
     plt.close()
     
-    # 3. Gráfico de Tempo de Resposta
+    # Gráfico de Tempo de Resposta
     plt.figure(figsize=(10, 6))
     plt.bar(x - width, data_by_metric["response_time"][1], width, label='1 Usuário', color='#009688')
     plt.bar(x, data_by_metric["response_time"][5], width, label='5 Usuários', color='#FF9800')
@@ -152,6 +160,25 @@ def main():
     plt.close()
 
     print(f"Gráficos gerados com sucesso na pasta {output_dir}/")
+
+    # Gerar resultados em texto (Markdown)
+    markdown_output = "### Resultados Tabulares (Valores Médios em ms)\n\n"
+    
+    for metric_key, metric_name in [("latency", "Latência"), ("processing_time", "Tempo de Processamento"), ("response_time", "Tempo de Resposta")]:
+        markdown_output += f"#### {metric_name}\n\n"
+        markdown_output += "| Rota | 1 Usuário (ms) | 5 Usuários (ms) | 10 Usuários (ms) |\n"
+        markdown_output += "|---|---|---|---|\n"
+        for i, route in enumerate(route_names):
+            val_1 = data_by_metric[metric_key][1][i]
+            val_5 = data_by_metric[metric_key][5][i]
+            val_10 = data_by_metric[metric_key][10][i]
+            markdown_output += f"| {route} | {val_1:.2f} | {val_5:.2f} | {val_10:.2f} |\n"
+        markdown_output += "\n"
+
+    with open("docs/resultados_texto.md", "w", encoding="utf-8") as f:
+        f.write(markdown_output)
+    
+    print("Resultados em texto gerados em docs/resultados_texto.md")
 
 if __name__ == "__main__":
     main()
