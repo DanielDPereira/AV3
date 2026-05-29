@@ -4,13 +4,24 @@ import concurrent.futures
 import matplotlib.pyplot as plt
 import numpy as np
 import os
+import random
 
 BASE_URL = "http://localhost:3001/api"
 ROUTES = [
+    # Requisições GET (Carregamento de Listas / Páginas)
     {"method": "GET", "url": f"{BASE_URL}/health"},
     {"method": "GET", "url": f"{BASE_URL}/aeronaves"},
     {"method": "GET", "url": f"{BASE_URL}/pecas"},
     {"method": "GET", "url": f"{BASE_URL}/funcionarios"},
+    {"method": "GET", "url": f"{BASE_URL}/etapas"},
+    {"method": "GET", "url": f"{BASE_URL}/testes"},
+    {"method": "GET", "url": f"{BASE_URL}/relatorios"},
+    {"method": "GET", "url": f"{BASE_URL}/dashboard"},
+    
+    # Requisições POST (Preenchimento de Formulários)
+    {"method": "POST", "url": f"{BASE_URL}/aeronaves", "body": {"modelo": "Aeronave Teste", "tipo": "COMERCIAL", "capacidade": 200, "alcance": 8000}},
+    {"method": "POST", "url": f"{BASE_URL}/pecas", "body": {"nome": "Motor Teste", "tipo": "NACIONAL", "fornecedor": "Embraer", "status": "PRONTA"}},
+    {"method": "POST", "url": f"{BASE_URL}/funcionarios", "body": {"nome": "Func Teste", "senha": "123", "nivelPermissao": "OPERADOR"}}
 ]
 
 def make_request(route):
@@ -19,7 +30,15 @@ def make_request(route):
         if route["method"] == "GET":
             response = requests.get(route["url"], timeout=5)
         elif route["method"] == "POST":
-            response = requests.post(route["url"], json=route.get("body", {}), timeout=5)
+            # Prevenir erros de Constraint Unique no DB
+            body = dict(route.get("body", {}))
+            rand_id = random.randint(100000, 999999)
+            if route["url"].endswith("/aeronaves"):
+                body["codigo"] = f"TEST-{rand_id}"
+            if route["url"].endswith("/funcionarios"):
+                body["usuario"] = f"user_{rand_id}"
+                
+            response = requests.post(route["url"], json=body, timeout=5)
         
         end_time = time.time()
         
@@ -29,13 +48,15 @@ def make_request(route):
         if processing_time_header:
             processing_time = float(processing_time_header)
         else:
-            # Fallback se o middleware falhar
             processing_time = response_time * 0.7 
             
         latency = max(0, response_time - processing_time)
         
+        # O nome da rota no log agora terá o método HTTP para diferenciar os GETs dos POSTs
+        route_name = f"[{route['method']}] {route['url'].split(BASE_URL)[1]}"
+        
         return {
-            "route": route["url"].split(BASE_URL)[1],
+            "route": route_name,
             "response_time": response_time,
             "processing_time": processing_time,
             "latency": latency,
@@ -97,7 +118,7 @@ def main():
         "latency": {1: [], 5: [], 10: []}
     }
     
-    route_names = [r["url"].split(BASE_URL)[1] for r in ROUTES]
+    route_names = [f"[{r['method']}] {r['url'].split(BASE_URL)[1]}" for r in ROUTES]
     
     for users in scenarios:
         summary = test_scenario(users)
@@ -121,41 +142,44 @@ def main():
     width = 0.25
     
     # 1. Gráfico de Latência
-    plt.figure(figsize=(10, 6))
+    plt.figure(figsize=(14, 8))
     plt.bar(x - width, data_by_metric["latency"][1], width, label='1 Usuário', color='#4CAF50')
     plt.bar(x, data_by_metric["latency"][5], width, label='5 Usuários', color='#FFC107')
     plt.bar(x + width, data_by_metric["latency"][10], width, label='10 Usuários', color='#F44336')
     plt.ylabel('Latência (ms)')
     plt.title('Métrica de Latência por Rota e Carga de Usuários')
-    plt.xticks(x, route_names)
+    plt.xticks(x, route_names, rotation=45, ha='right')
     plt.legend()
     plt.grid(axis='y', linestyle='--', alpha=0.7)
+    plt.tight_layout()
     plt.savefig(os.path.join(output_dir, "grafico_latencia.png"))
     plt.close()
     
     # 2. Gráfico de Tempo de Processamento
-    plt.figure(figsize=(10, 6))
+    plt.figure(figsize=(14, 8))
     plt.bar(x - width, data_by_metric["processing_time"][1], width, label='1 Usuário', color='#2196F3')
     plt.bar(x, data_by_metric["processing_time"][5], width, label='5 Usuários', color='#9C27B0')
     plt.bar(x + width, data_by_metric["processing_time"][10], width, label='10 Usuários', color='#E91E63')
     plt.ylabel('Tempo de Processamento (ms)')
     plt.title('Métrica de Tempo de Processamento por Rota e Carga de Usuários')
-    plt.xticks(x, route_names)
+    plt.xticks(x, route_names, rotation=45, ha='right')
     plt.legend()
     plt.grid(axis='y', linestyle='--', alpha=0.7)
+    plt.tight_layout()
     plt.savefig(os.path.join(output_dir, "grafico_processamento.png"))
     plt.close()
     
     # Gráfico de Tempo de Resposta
-    plt.figure(figsize=(10, 6))
+    plt.figure(figsize=(14, 8))
     plt.bar(x - width, data_by_metric["response_time"][1], width, label='1 Usuário', color='#009688')
     plt.bar(x, data_by_metric["response_time"][5], width, label='5 Usuários', color='#FF9800')
     plt.bar(x + width, data_by_metric["response_time"][10], width, label='10 Usuários', color='#795548')
     plt.ylabel('Tempo de Resposta (ms)')
     plt.title('Métrica de Tempo de Resposta por Rota e Carga de Usuários')
-    plt.xticks(x, route_names)
+    plt.xticks(x, route_names, rotation=45, ha='right')
     plt.legend()
     plt.grid(axis='y', linestyle='--', alpha=0.7)
+    plt.tight_layout()
     plt.savefig(os.path.join(output_dir, "grafico_resposta.png"))
     plt.close()
 
