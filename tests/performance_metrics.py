@@ -7,42 +7,105 @@ import os
 import random
 
 BASE_URL = "http://localhost:3001/api"
+global_token = None
+
+# TODAS AS ROTAS DO SISTEMA
 ROUTES = [
-    # Requisições GET (Carregamento de Listas / Páginas)
     {"method": "GET", "url": f"{BASE_URL}/health"},
-    {"method": "GET", "url": f"{BASE_URL}/aeronaves"},
-    {"method": "GET", "url": f"{BASE_URL}/pecas"},
-    {"method": "GET", "url": f"{BASE_URL}/funcionarios"},
-    {"method": "GET", "url": f"{BASE_URL}/etapas"},
-    {"method": "GET", "url": f"{BASE_URL}/testes"},
-    {"method": "GET", "url": f"{BASE_URL}/relatorios"},
+    {"method": "POST", "url": f"{BASE_URL}/auth/login", "body": {"usuario": "admin", "senha": "admin"}},
+    {"method": "GET", "url": f"{BASE_URL}/auth/me"},
     {"method": "GET", "url": f"{BASE_URL}/dashboard"},
     
-    # Requisições POST (Preenchimento de Formulários)
-    {"method": "POST", "url": f"{BASE_URL}/aeronaves", "body": {"modelo": "Aeronave Teste", "tipo": "COMERCIAL", "capacidade": 200, "alcance": 8000}},
-    {"method": "POST", "url": f"{BASE_URL}/pecas", "body": {"nome": "Motor Teste", "tipo": "NACIONAL", "fornecedor": "Embraer", "status": "PRONTA"}},
-    {"method": "POST", "url": f"{BASE_URL}/funcionarios", "body": {"nome": "Func Teste", "senha": "123", "nivelPermissao": "OPERADOR"}}
+    # Aeronaves
+    {"method": "GET", "url": f"{BASE_URL}/aeronaves"},
+    {"method": "GET", "url": f"{BASE_URL}/aeronaves/1"},
+    {"method": "POST", "url": f"{BASE_URL}/aeronaves", "body": {"modelo": "Aero", "tipo": "COMERCIAL", "capacidade": 100, "alcance": 1000}},
+    {"method": "PUT", "url": f"{BASE_URL}/aeronaves/1", "body": {"modelo": "Aero Modificado"}},
+    {"method": "DELETE", "url": f"{BASE_URL}/aeronaves/9999"},
+    
+    # Peças
+    {"method": "GET", "url": f"{BASE_URL}/pecas"},
+    {"method": "GET", "url": f"{BASE_URL}/pecas/1"},
+    {"method": "POST", "url": f"{BASE_URL}/pecas", "body": {"nome": "Motor", "tipo": "NACIONAL", "fornecedor": "ABC", "status": "PRONTA"}},
+    {"method": "PUT", "url": f"{BASE_URL}/pecas/1", "body": {"nome": "Motor Modificado"}},
+    {"method": "DELETE", "url": f"{BASE_URL}/pecas/9999"},
+    
+    # Funcionários
+    {"method": "GET", "url": f"{BASE_URL}/funcionarios"},
+    {"method": "GET", "url": f"{BASE_URL}/funcionarios/1"},
+    {"method": "POST", "url": f"{BASE_URL}/funcionarios", "body": {"nome": "Func", "senha": "123", "nivelPermissao": "OPERADOR"}},
+    {"method": "PUT", "url": f"{BASE_URL}/funcionarios/1", "body": {"nome": "Func Modificado"}},
+    {"method": "DELETE", "url": f"{BASE_URL}/funcionarios/9999"},
+    
+    # Etapas
+    {"method": "GET", "url": f"{BASE_URL}/etapas"},
+    {"method": "GET", "url": f"{BASE_URL}/etapas/1"},
+    {"method": "POST", "url": f"{BASE_URL}/etapas", "body": {"nome": "Montagem", "prazo": "2026-12-31T00:00:00Z", "aeronaveId": 1}},
+    {"method": "PUT", "url": f"{BASE_URL}/etapas/1", "body": {"status": "EM_ANDAMENTO"}},
+    {"method": "DELETE", "url": f"{BASE_URL}/etapas/9999"},
+    {"method": "POST", "url": f"{BASE_URL}/etapas/1/alocar", "body": {"funcionarioId": 1}},
+    {"method": "DELETE", "url": f"{BASE_URL}/etapas/1/desalocar", "body": {"funcionarioId": 1}},
+    
+    # Testes
+    {"method": "GET", "url": f"{BASE_URL}/testes"},
+    {"method": "GET", "url": f"{BASE_URL}/testes/1"},
+    {"method": "POST", "url": f"{BASE_URL}/testes", "body": {"tipo": "ELETRICO", "resultado": "APROVADO", "aeronaveId": 1}},
+    {"method": "PUT", "url": f"{BASE_URL}/testes/1", "body": {"resultado": "REPROVADO"}},
+    {"method": "DELETE", "url": f"{BASE_URL}/testes/9999"},
+    
+    # Relatorios
+    {"method": "GET", "url": f"{BASE_URL}/relatorios"},
+    {"method": "GET", "url": f"{BASE_URL}/relatorios/1"},
+    {"method": "POST", "url": f"{BASE_URL}/relatorios", "body": {"nomeArquivo": "relatorio.pdf", "aeronaveId": 1}},
+    {"method": "DELETE", "url": f"{BASE_URL}/relatorios/9999"},
 ]
+
+def get_token():
+    try:
+        r = requests.post(f"{BASE_URL}/auth/login", json={"usuario": "admin", "senha": "123"}, timeout=5)
+        if r.status_code == 200:
+            return r.json().get("token")
+        else:
+            print("Login failed with status:", r.status_code, r.text)
+            return None
+    except Exception as e:
+        print("Login exception:", e)
+        return None
 
 def make_request(route):
     start_time = time.time()
     try:
-        if route["method"] == "GET":
-            response = requests.get(route["url"], timeout=5)
-        elif route["method"] == "POST":
-            # Prevenir erros de Constraint Unique no DB
+        headers = {}
+        if global_token:
+            headers["Authorization"] = f"Bearer {global_token}"
+            
+        url = route["url"]
+        method = route["method"]
+        
+        if method == "GET":
+            response = requests.get(url, headers=headers, timeout=5)
+        elif method == "DELETE":
+            # For DELETE with body (like desalocar)
+            body = route.get("body", {})
+            if body:
+                response = requests.delete(url, json=body, headers=headers, timeout=5)
+            else:
+                response = requests.delete(url, headers=headers, timeout=5)
+        elif method in ["POST", "PUT"]:
             body = dict(route.get("body", {}))
             rand_id = random.randint(100000, 999999)
-            if route["url"].endswith("/aeronaves"):
-                body["codigo"] = f"TEST-{rand_id}"
-            if route["url"].endswith("/funcionarios"):
+            if "/aeronaves" in url and method == "POST":
+                body["codigo"] = f"T-{rand_id}"
+            if "/funcionarios" in url and method == "POST":
                 body["usuario"] = f"user_{rand_id}"
                 
-            response = requests.post(route["url"], json=body, timeout=5)
+            if method == "POST":
+                response = requests.post(url, json=body, headers=headers, timeout=5)
+            else:
+                response = requests.put(url, json=body, headers=headers, timeout=5)
         
         end_time = time.time()
-        
-        response_time = (end_time - start_time) * 1000 # in ms
+        response_time = (end_time - start_time) * 1000
         
         processing_time_header = response.headers.get("X-Processing-Time")
         if processing_time_header:
@@ -52,9 +115,10 @@ def make_request(route):
             
         latency = max(0, response_time - processing_time)
         
-        # O nome da rota no log agora terá o método HTTP para diferenciar os GETs dos POSTs
-        route_name = f"[{route['method']}] {route['url'].split(BASE_URL)[1]}"
-        
+        route_name = f"[{method}] {url.split(BASE_URL)[1]}"
+        if len(route_name) > 25:
+            route_name = route_name[:22] + "..."
+            
         return {
             "route": route_name,
             "response_time": response_time,
@@ -110,6 +174,11 @@ def warm_up():
             make_request(route)
 
 def main():
+    global global_token
+    global_token = get_token()
+    if not global_token:
+        print("Aviso: Falha ao obter token de autenticação. Algumas rotas retornarão 401.")
+        
     warm_up()
     scenarios = [1, 5, 10]
     data_by_metric = {
@@ -118,7 +187,12 @@ def main():
         "latency": {1: [], 5: [], 10: []}
     }
     
-    route_names = [f"[{r['method']}] {r['url'].split(BASE_URL)[1]}" for r in ROUTES]
+    route_names = []
+    for r in ROUTES:
+        name = f"[{r['method']}] {r['url'].split(BASE_URL)[1]}"
+        if len(name) > 25:
+            name = name[:22] + "..."
+        route_names.append(name)
     
     for users in scenarios:
         summary = test_scenario(users)
