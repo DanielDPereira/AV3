@@ -67,10 +67,10 @@ O Aerocode foi desenvolvido de forma incremental ao longo de três entregas, cad
 - **Backend completo:** API REST com Express e TypeScript, substituindo os dados mockados do frontend.
 - **Banco de dados relacional:** MySQL 8 gerenciado pelo Prisma ORM, com migrations e seed automático.
 - **Autenticação real:** JWT + bcrypt substituindo a autenticação local simulada.
-- **Segurança:** Helmet, CORS, rate limiting e validação de dados com Zod.
+- **Segurança e Auditoria Avançada:** Helmet, CORS, Express Rate Limit com gestão de IP blindada contra memory leak, validação rigorosa com Zod e defesa ativa atestada no [Relatório de Auditoria de Segurança](./docs/auditoria-seguranca.md).
 - **Documentação da API:** Swagger UI integrado em `/api/docs`.
 - **Infraestrutura:** Docker Compose orquestrando três containers (frontend, backend, database).
-- **Testes automatizados:** Suíte de testes QA em Python (pytest + requests) cobrindo todos os módulos.
+- **Testes e Alta Performance:** Suíte de QA e testes automatizados em Python (10 módulos), complementada por testes de estresse em multi-thread registrados no extenso [Laudo de Performance da API](./docs/relatorio-performance.md).
 
 ---
 
@@ -292,6 +292,8 @@ pytest test_02_auth.py -v
 | `test_07_funcionarios` | CRUD + soft delete + restrição Admin-only |
 | `test_08_relatorios` | Geração + visualização + download TXT |
 | `test_09_dashboard` | Estatísticas gerais + aeronaves recentes |
+| `test_10_security` | Auditoria contra Object Injection no Prisma, Rate Limiting Bypass e Memory Leaks |
+| `performance_metrics.py`| Script Python de análise de estresse concorrente para geração dos gráficos de performance |
 
 ---
 
@@ -355,8 +357,8 @@ AV3/
 │   └── init/
 │       └── 01-setup.sql            # Charset UTF-8 + permissões MySQL
 │
-├── tests/                          # Testes QA automatizados
-│   ├── requirements.txt            # pytest + requests
+├── tests/                          # Testes QA automatizados e Medição de Performance
+│   ├── requirements.txt            # pytest, requests, matplotlib, numpy
 │   ├── conftest.py                 # Fixtures (tokens, headers, base_url)
 │   ├── test_01_health.py
 │   ├── test_02_auth.py
@@ -366,13 +368,19 @@ AV3/
 │   ├── test_06_testes.py
 │   ├── test_07_funcionarios.py
 │   ├── test_08_relatorios.py
-│   └── test_09_dashboard.py
+│   ├── test_09_dashboard.py
+│   ├── test_10_security.py         # Teste de exploração de falhas e bypass de segurança
+│   └── performance_metrics.py      # Multi-threading HTTP simulador e gerador de gráficos (1 a 10 usuários)
 │
 └── docs/
     ├── AV3.pdf                     # Documento de requisitos da atividade
     ├── arquitetura.md              # Documentação técnica da arquitetura
     ├── api.md                      # Referência completa da API REST
-    └── banco-de-dados.md           # Modelo de dados e relacionamentos
+    ├── banco-de-dados.md           # Modelo de dados e relacionamentos
+    ├── auditoria-seguranca.md      # Relatório formal de detecção e patches de segurança aplicados
+    ├── relatorio-performance.md    # Laudo comprobatório (tabelas e gráficos horizontais) da capacidade da infra
+    ├── resultados_texto.md         # Tabelas geradas programaticamente pelas baterias de testes 
+    └── assets/                     # Repositório das imagens em alta definição dos gráficos de performance
 ```
 
 ---
@@ -386,6 +394,8 @@ Para detalhes técnicos aprofundados, consulte os documentos na pasta [`docs/`](
 | [**arquitetura.md**](./docs/arquitetura.md) | Visão geral da arquitetura, fluxo de autenticação, middlewares e padrões de projeto adotados. |
 | [**api.md**](./docs/api.md) | Referência completa de todos os endpoints da API REST, com métodos, rotas, parâmetros e permissões. |
 | [**banco-de-dados.md**](./docs/banco-de-dados.md) | Modelo relacional, diagrama entidade-relacionamento, enums e descrição das tabelas. |
+| [**auditoria-seguranca.md**](./docs/auditoria-seguranca.md) | Relatório de blindagem contra ataques de object injection, enumeração, brute-force e memory leaks nas políticas de segurança. |
+| [**relatorio-performance.md**](./docs/relatorio-performance.md) | Laudo de viabilidade corporativa e escalabilidade atestando latência sub-milissegundo para os 35 endpoints simultâneos da API. |
 
 ---
 
