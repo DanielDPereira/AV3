@@ -35,10 +35,13 @@ export const autenticar = (req: Request, res: Response, next: NextFunction): voi
   const token = authHeader.split(' ')[1];
 
   try {
-    const decoded = jwt.verify(token, process.env.JWT_SECRET || 'fallback-secret') as JwtPayload;
+    if (!process.env.JWT_SECRET) {
+      throw new Error('JWT_SECRET não configurado');
+    }
+    const decoded = jwt.verify(token, process.env.JWT_SECRET, { algorithms: ['HS256'] }) as JwtPayload;
     req.user = decoded;
     next();
-  } catch {
+  } catch (error) {
     res.status(401).json({ error: 'Token inválido ou expirado' });
   }
 };
