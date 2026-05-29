@@ -212,50 +212,58 @@ def main():
     output_dir = "docs/assets"
     os.makedirs(output_dir, exist_ok=True)
     
-    x = np.arange(len(route_names))
-    width = 0.25
+    y_pos = np.arange(len(route_names))
+    height = 0.25
     
+    # Função auxiliar para configurar e salvar cada gráfico
+    def render_horizontal_chart(metric_key, title, xlabel, colors, filename):
+        plt.figure(figsize=(14, 18)) # Altura generosa para 35 rotas
+        
+        plt.barh(y_pos + height, data_by_metric[metric_key][1], height, label='1 Usuário', color=colors[0])
+        plt.barh(y_pos, data_by_metric[metric_key][5], height, label='5 Usuários', color=colors[1])
+        plt.barh(y_pos - height, data_by_metric[metric_key][10], height, label='10 Usuários', color=colors[2])
+        
+        plt.xlabel(xlabel, fontsize=12, fontweight='bold')
+        plt.title(title, fontsize=16, fontweight='bold', pad=20)
+        
+        # Inverter eixo Y para a primeira rota aparecer no topo
+        plt.gca().invert_yaxis()
+        
+        plt.yticks(y_pos, route_names, fontsize=10)
+        plt.legend(loc='upper right', fontsize=11)
+        
+        # Grid apenas no eixo X para facilitar leitura horizontal dos valores
+        plt.grid(axis='x', linestyle='--', alpha=0.7)
+        plt.tight_layout()
+        plt.savefig(os.path.join(output_dir, filename), dpi=150)
+        plt.close()
+
     # 1. Gráfico de Latência
-    plt.figure(figsize=(14, 8))
-    plt.bar(x - width, data_by_metric["latency"][1], width, label='1 Usuário', color='#4CAF50')
-    plt.bar(x, data_by_metric["latency"][5], width, label='5 Usuários', color='#FFC107')
-    plt.bar(x + width, data_by_metric["latency"][10], width, label='10 Usuários', color='#F44336')
-    plt.ylabel('Latência (ms)')
-    plt.title('Métrica de Latência por Rota e Carga de Usuários')
-    plt.xticks(x, route_names, rotation=45, ha='right')
-    plt.legend()
-    plt.grid(axis='y', linestyle='--', alpha=0.7)
-    plt.tight_layout()
-    plt.savefig(os.path.join(output_dir, "grafico_latencia.png"))
-    plt.close()
+    render_horizontal_chart(
+        "latency", 
+        "Latência de Rede por Rota e Carga", 
+        "Latência (ms)", 
+        ['#4CAF50', '#FFC107', '#F44336'], 
+        "grafico_latencia.png"
+    )
     
     # 2. Gráfico de Tempo de Processamento
-    plt.figure(figsize=(14, 8))
-    plt.bar(x - width, data_by_metric["processing_time"][1], width, label='1 Usuário', color='#2196F3')
-    plt.bar(x, data_by_metric["processing_time"][5], width, label='5 Usuários', color='#9C27B0')
-    plt.bar(x + width, data_by_metric["processing_time"][10], width, label='10 Usuários', color='#E91E63')
-    plt.ylabel('Tempo de Processamento (ms)')
-    plt.title('Métrica de Tempo de Processamento por Rota e Carga de Usuários')
-    plt.xticks(x, route_names, rotation=45, ha='right')
-    plt.legend()
-    plt.grid(axis='y', linestyle='--', alpha=0.7)
-    plt.tight_layout()
-    plt.savefig(os.path.join(output_dir, "grafico_processamento.png"))
-    plt.close()
+    render_horizontal_chart(
+        "processing_time", 
+        "Tempo de Processamento (CPU/DB) por Rota e Carga", 
+        "Tempo de Processamento (ms)", 
+        ['#2196F3', '#9C27B0', '#E91E63'], 
+        "grafico_processamento.png"
+    )
     
-    # Gráfico de Tempo de Resposta
-    plt.figure(figsize=(14, 8))
-    plt.bar(x - width, data_by_metric["response_time"][1], width, label='1 Usuário', color='#009688')
-    plt.bar(x, data_by_metric["response_time"][5], width, label='5 Usuários', color='#FF9800')
-    plt.bar(x + width, data_by_metric["response_time"][10], width, label='10 Usuários', color='#795548')
-    plt.ylabel('Tempo de Resposta (ms)')
-    plt.title('Métrica de Tempo de Resposta por Rota e Carga de Usuários')
-    plt.xticks(x, route_names, rotation=45, ha='right')
-    plt.legend()
-    plt.grid(axis='y', linestyle='--', alpha=0.7)
-    plt.tight_layout()
-    plt.savefig(os.path.join(output_dir, "grafico_resposta.png"))
-    plt.close()
+    # 3. Gráfico de Tempo de Resposta
+    render_horizontal_chart(
+        "response_time", 
+        "Tempo de Resposta Total por Rota e Carga", 
+        "Tempo de Resposta Total (ms)", 
+        ['#009688', '#FF9800', '#795548'], 
+        "grafico_resposta.png"
+    )
 
     print(f"Gráficos gerados com sucesso na pasta {output_dir}/")
 
