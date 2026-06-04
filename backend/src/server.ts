@@ -47,6 +47,7 @@ const limiter = rateLimit({
   message: { error: 'Muitas requisições deste IP, tente novamente mais tarde.' },
   standardHeaders: true,
   legacyHeaders: false,
+  skip: () => process.env.NODE_ENV === 'development' || process.env.DISABLE_RATE_LIMIT === 'true',
 });
 app.use('/api', limiter);
 

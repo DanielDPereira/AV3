@@ -62,7 +62,7 @@ ROUTES = [
 
 def get_token():
     try:
-        r = requests.post(f"{BASE_URL}/auth/login", json={"usuario": "admin", "senha": "123"}, timeout=5)
+        r = requests.post(f"{BASE_URL}/auth/login", json={"usuario": "admin", "senha": "admin"}, timeout=5)
         if r.status_code == 200:
             return r.json().get("token")
         else:

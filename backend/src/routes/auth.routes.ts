@@ -21,6 +21,7 @@ const loginRateLimiter = rateLimit({
   message: { error: 'Muitas tentativas de login. Tente novamente em 1 minuto.' },
   standardHeaders: true,
   legacyHeaders: false,
+  skip: () => process.env.NODE_ENV === 'development' || process.env.DISABLE_RATE_LIMIT === 'true',
 });
 
 /**
