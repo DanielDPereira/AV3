@@ -31,6 +31,40 @@ const nivelVariants: Record<string, string> = {
 };
 const getIniciais = (nome: string) => nome.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase() || 'NO';
 
+const getDdiLength = (nums: string): number => {
+  if (nums.startsWith('1') || nums.startsWith('7')) return 1;
+  const prefix2 = nums.slice(0, 2);
+  const prefixes3 = ['29', '35', '37', '38', '50', '59', '67', '68', '69', '85', '88', '96', '97', '99'];
+  if (prefixes3.includes(prefix2)) return 3;
+  return 2;
+};
+
+const formatarTelefone = (valor: string): string => {
+  let apenasNumeros = valor.replace(/[^\d+]/g, '');
+  const temMais = apenasNumeros.startsWith('+');
+  let numeros = apenasNumeros.replace(/\+/g, '');
+
+  if (temMais || numeros.length > 11) {
+    const ddiLen = numeros.length > 11 ? numeros.length - 11 : getDdiLength(numeros);
+    const maxDigits = Math.min(ddiLen, 3) + 11;
+    numeros = numeros.slice(0, maxDigits);
+    
+    const ddiActualLen = Math.min(ddiLen, numeros.length);
+    const ddi = numeros.slice(0, ddiActualLen);
+    const rest = numeros.slice(ddiActualLen);
+    
+    if (rest.length === 0) return `+${ddi}`;
+    if (rest.length <= 2) return `+${ddi} ${rest}`;
+    if (rest.length <= 7) return `+${ddi} ${rest.slice(0, 2)} ${rest.slice(2)}`;
+    return `+${ddi} ${rest.slice(0, 2)} ${rest.slice(2, 7)} - ${rest.slice(7)}`;
+  } else {
+    numeros = numeros.slice(0, 11);
+    if (numeros.length <= 2) return numeros;
+    if (numeros.length <= 7) return `${numeros.slice(0, 2)} ${numeros.slice(2)}`;
+    return `${numeros.slice(0, 2)} ${numeros.slice(2, 7)} - ${numeros.slice(7)}`;
+  }
+};
+
 const Funcionarios: React.FC = () => {
   const [funcionarios, setFuncionarios] = useState<FuncAPI[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -67,7 +101,7 @@ const Funcionarios: React.FC = () => {
     } catch (err) { console.error('Erro ao criar funcionário:', err); } finally { setSubmitLoading(false); }
   };
 
-  const openEdit = (f: FuncAPI) => { setEditTarget(f); setEditForm({ nome: f.nome, telefone: f.telefone, endereco: f.endereco, usuario: f.usuario, tipo: f.nivelPermissao }); setIsEditOpen(true); };
+  const openEdit = (f: FuncAPI) => { setEditTarget(f); setEditForm({ nome: f.nome, telefone: formatarTelefone(f.telefone), endereco: f.endereco, usuario: f.usuario, tipo: f.nivelPermissao }); setIsEditOpen(true); };
   const handleEdit = async (e: React.FormEvent) => {
     e.preventDefault(); if (!editTarget) return;
     setSubmitLoading(true);
@@ -188,7 +222,7 @@ const Funcionarios: React.FC = () => {
       <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} title="Cadastrar Funcionário">
         <form className="flex flex-col gap-md" onSubmit={handleCreate}>
           <div className="flex flex-col gap-xs"><label className="font-label-md text-on-surface">Nome</label><input type="text" value={novoFunc.nome} onChange={(e) => setNovoFunc({...novoFunc, nome: e.target.value})} className={inputCls} required /></div>
-          <div className="flex flex-col gap-xs"><label className="font-label-md text-on-surface">Telefone</label><input type="text" value={novoFunc.telefone} onChange={(e) => setNovoFunc({...novoFunc, telefone: e.target.value})} className={inputCls} required /></div>
+          <div className="flex flex-col gap-xs"><label className="font-label-md text-on-surface">Telefone</label><input type="text" value={novoFunc.telefone} onChange={(e) => setNovoFunc({...novoFunc, telefone: formatarTelefone(e.target.value)})} placeholder="Ex: +55 11 99999 - 9999" maxLength={20} className={inputCls} required /></div>
           <div className="flex flex-col gap-xs"><label className="font-label-md text-on-surface">Endereço</label><input type="text" value={novoFunc.endereco} onChange={(e) => setNovoFunc({...novoFunc, endereco: e.target.value})} className={inputCls} required /></div>
           <div className="flex flex-col gap-xs"><label className="font-label-md text-on-surface">Usuário (Login)</label><input type="text" value={novoFunc.usuario} onChange={(e) => setNovoFunc({...novoFunc, usuario: e.target.value})} className={inputCls} required /></div>
           <div className="flex flex-col gap-xs"><label className="font-label-md text-on-surface">Senha</label><input type="password" value={novoFunc.senha} onChange={(e) => setNovoFunc({...novoFunc, senha: e.target.value})} className={inputCls} required /></div>
@@ -203,7 +237,7 @@ const Funcionarios: React.FC = () => {
       <Modal isOpen={isEditOpen} onClose={() => setIsEditOpen(false)} title={`Editar — ${editTarget?.nome || ''}`}>
         <form className="flex flex-col gap-md" onSubmit={handleEdit}>
           <div className="flex flex-col gap-xs"><label className="font-label-md text-on-surface">Nome</label><input type="text" value={editForm.nome} onChange={(e) => setEditForm({...editForm, nome: e.target.value})} className={inputCls} required /></div>
-          <div className="flex flex-col gap-xs"><label className="font-label-md text-on-surface">Telefone</label><input type="text" value={editForm.telefone} onChange={(e) => setEditForm({...editForm, telefone: e.target.value})} className={inputCls} required /></div>
+          <div className="flex flex-col gap-xs"><label className="font-label-md text-on-surface">Telefone</label><input type="text" value={editForm.telefone} onChange={(e) => setEditForm({...editForm, telefone: formatarTelefone(e.target.value)})} placeholder="Ex: +55 11 99999 - 9999" maxLength={20} className={inputCls} required /></div>
           <div className="flex flex-col gap-xs"><label className="font-label-md text-on-surface">Endereço</label><input type="text" value={editForm.endereco} onChange={(e) => setEditForm({...editForm, endereco: e.target.value})} className={inputCls} required /></div>
           <div className="flex flex-col gap-xs"><label className="font-label-md text-on-surface">Usuário</label><input type="text" value={editForm.usuario} onChange={(e) => setEditForm({...editForm, usuario: e.target.value})} className={inputCls} required /></div>
           <div className="flex flex-col gap-xs"><label className="font-label-md text-on-surface">Tipo de Conta</label><select value={editForm.tipo} onChange={(e) => setEditForm({...editForm, tipo: e.target.value})} className={inputCls} required><option value="OPERADOR">1- Operador</option><option value="ENGENHEIRO">2- Engenheiro</option><option value="ADMINISTRADOR">3- Admin</option></select></div>
