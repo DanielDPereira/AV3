@@ -5,6 +5,8 @@ import Layout from '../../components/Layout';
 import Modal from '../../components/Modal';
 import Tooltip from '../../components/Tooltip';
 import api from '../../services/api';
+import { useAuth, NivelPermissao } from '../../contexts/AuthContext';
+import { useToast } from '../../contexts/ToastContext';
 
 // Interface local alinhada com o retorno da API
 interface AeronaveAPI {
@@ -34,6 +36,8 @@ const getTipoBadge = (tipo: string) => tipo === 'COMERCIAL'
 const getTipoLabel = (tipo: string) => tipo === 'COMERCIAL' ? 'Comercial' : 'Militar';
 
 const Aeronaves: React.FC = () => {
+  const { temPermissao } = useAuth();
+  const { showToast } = useToast();
   const navigate = useNavigate();
   const [aeronaves, setAeronaves] = useState<AeronaveAPI[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -93,8 +97,11 @@ const Aeronaves: React.FC = () => {
       setIsModalOpen(false);
       setNovaAeronave({ codigo: '', modelo: '', tipo: 'COMERCIAL', capacidade: '', alcance: '' });
       fetchAeronaves();
-    } catch (err) {
+      showToast('Aeronave cadastrada com sucesso!', 'success');
+    } catch (err: any) {
       console.error('Erro ao criar aeronave:', err);
+      const msg = err.response?.data?.error || 'Erro ao cadastrar aeronave.';
+      showToast(msg, 'error');
     } finally {
       setSubmitLoading(false);
     }
@@ -120,8 +127,11 @@ const Aeronaves: React.FC = () => {
       });
       setIsEditOpen(false);
       fetchAeronaves();
-    } catch (err) {
+      showToast('Aeronave atualizada com sucesso!', 'success');
+    } catch (err: any) {
       console.error('Erro ao editar aeronave:', err);
+      const msg = err.response?.data?.error || 'Erro ao editar aeronave.';
+      showToast(msg, 'error');
     } finally {
       setSubmitLoading(false);
     }
@@ -135,8 +145,11 @@ const Aeronaves: React.FC = () => {
       await api.delete(`/api/aeronaves/${deleteTarget.id}`);
       setIsDeleteOpen(false);
       fetchAeronaves();
-    } catch (err) {
+      showToast('Aeronave excluída com sucesso!', 'success');
+    } catch (err: any) {
       console.error('Erro ao excluir aeronave:', err);
+      const msg = err.response?.data?.error || 'Erro ao excluir aeronave.';
+      showToast(msg, 'error');
     } finally {
       setSubmitLoading(false);
     }
@@ -166,10 +179,19 @@ const Aeronaves: React.FC = () => {
               <span className="material-symbols-outlined text-[18px]">filter_list</span>
               Filtros { (filters.tipo !== 'Todos' || filters.minCapacidade !== '') && '•'}
             </button>
-            <button onClick={() => setIsModalOpen(true)} className={btnPrimaryCls}>
-              <span className="material-symbols-outlined text-[18px]">add</span>
-              Nova Aeronave
-            </button>
+            {temPermissao([NivelPermissao.ADMINISTRADOR, NivelPermissao.ENGENHEIRO]) ? (
+              <button onClick={() => setIsModalOpen(true)} className={btnPrimaryCls}>
+                <span className="material-symbols-outlined text-[18px]">add</span>
+                Nova Aeronave
+              </button>
+            ) : (
+              <Tooltip label="Apenas Administradores e Engenheiros podem cadastrar aeronaves">
+                <button className={`${btnPrimaryCls} opacity-50 cursor-not-allowed`} disabled>
+                  <span className="material-symbols-outlined text-[18px]">add</span>
+                  Nova Aeronave
+                </button>
+              </Tooltip>
+            )}
           </div>
         </div>
 
@@ -233,13 +255,23 @@ const Aeronaves: React.FC = () => {
                                 <span aria-hidden="true" className="material-symbols-outlined text-[20px]">assignment</span>
                               </button>
                             </Tooltip>
-                            <Tooltip label="Editar">
-                              <button aria-label={`Editar ${aero.codigo}`} className={actionBtnEditCls} onClick={() => openEdit(aero)}>
+                            <Tooltip label={temPermissao([NivelPermissao.ADMINISTRADOR, NivelPermissao.ENGENHEIRO]) ? "Editar" : "Apenas Administradores e Engenheiros podem editar aeronaves"}>
+                              <button 
+                                aria-label={`Editar ${aero.codigo}`} 
+                                className={`${actionBtnEditCls} ${!temPermissao([NivelPermissao.ADMINISTRADOR, NivelPermissao.ENGENHEIRO]) ? 'opacity-40 cursor-not-allowed hover:text-outline-variant hover:bg-transparent' : ''}`} 
+                                onClick={() => temPermissao([NivelPermissao.ADMINISTRADOR, NivelPermissao.ENGENHEIRO]) && openEdit(aero)}
+                                disabled={!temPermissao([NivelPermissao.ADMINISTRADOR, NivelPermissao.ENGENHEIRO])}
+                              >
                                 <span aria-hidden="true" className="material-symbols-outlined text-[20px]">edit</span>
                               </button>
                             </Tooltip>
-                            <Tooltip label="Excluir">
-                              <button aria-label={`Excluir ${aero.codigo}`} className={actionBtnDeleteCls} onClick={() => openDelete(aero)}>
+                            <Tooltip label={temPermissao([NivelPermissao.ADMINISTRADOR]) ? "Excluir" : "Apenas Administradores podem excluir aeronaves"}>
+                              <button 
+                                aria-label={`Excluir ${aero.codigo}`} 
+                                className={`${actionBtnDeleteCls} ${!temPermissao([NivelPermissao.ADMINISTRADOR]) ? 'opacity-40 cursor-not-allowed hover:text-outline-variant hover:bg-transparent' : ''}`} 
+                                onClick={() => temPermissao([NivelPermissao.ADMINISTRADOR]) && openDelete(aero)}
+                                disabled={!temPermissao([NivelPermissao.ADMINISTRADOR])}
+                              >
                                 <span aria-hidden="true" className="material-symbols-outlined text-[20px]">delete</span>
                               </button>
                             </Tooltip>

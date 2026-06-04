@@ -4,6 +4,8 @@ import Layout from '../../components/Layout';
 import Modal from '../../components/Modal';
 import Tooltip from '../../components/Tooltip';
 import api from '../../services/api';
+import { useAuth, NivelPermissao } from '../../contexts/AuthContext';
+import { useToast } from '../../contexts/ToastContext';
 
 interface PecaAPI {
   id: number;
@@ -42,6 +44,8 @@ const getTipoLabel = (tipo: string) => tipo === 'NACIONAL' ? 'Nacional' : 'Impor
 interface AeronaveAPI { id: number; codigo: string; }
 
 const Pecas: React.FC = () => {
+  const { temPermissao } = useAuth();
+  const { showToast } = useToast();
   const [pecas, setPecas] = useState<PecaAPI[]>([]);
   const [aeronaves, setAeronaves] = useState<AeronaveAPI[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -90,7 +94,12 @@ const Pecas: React.FC = () => {
     try {
       await api.post('/api/pecas', { nome: novaPeca.nome, tipo: novaPeca.tipo, fornecedor: novaPeca.fornecedor, aeronaveId: novaPeca.aeronaveId ? Number(novaPeca.aeronaveId) : undefined });
       setIsModalOpen(false); setNovaPeca({ aeronaveId: '', nome: '', fornecedor: '', tipo: 'NACIONAL' }); fetchPecas();
-    } catch (err) { console.error('Erro ao criar peça:', err); } finally { setSubmitLoading(false); }
+      showToast('Peça adicionada com sucesso!', 'success');
+    } catch (err: any) {
+      console.error('Erro ao criar peça:', err);
+      const msg = err.response?.data?.error || 'Erro ao adicionar peça.';
+      showToast(msg, 'error');
+    } finally { setSubmitLoading(false); }
   };
 
   const openEdit = (p: PecaAPI) => {
@@ -104,14 +113,28 @@ const Pecas: React.FC = () => {
     try {
       await api.put(`/api/pecas/${editTarget.id}`, { nome: editForm.nome, tipo: editForm.tipo, fornecedor: editForm.fornecedor, aeronaveId: editForm.aeronaveId ? Number(editForm.aeronaveId) : null });
       setIsEditOpen(false); fetchPecas();
-    } catch (err) { console.error('Erro ao editar peça:', err); } finally { setSubmitLoading(false); }
+      showToast('Peça atualizada com sucesso!', 'success');
+    } catch (err: any) {
+      console.error('Erro ao editar peça:', err);
+      const msg = err.response?.data?.error || 'Erro ao editar peça.';
+      showToast(msg, 'error');
+    } finally { setSubmitLoading(false); }
   };
 
   const openDelete = (p: PecaAPI) => { setDeleteTarget(p); setIsDeleteOpen(true); };
   const handleDelete = async () => {
     if (!deleteTarget) return;
     setSubmitLoading(true);
-    try { await api.delete(`/api/pecas/${deleteTarget.id}`); setIsDeleteOpen(false); fetchPecas(); } catch (err) { console.error('Erro ao excluir peça:', err); } finally { setSubmitLoading(false); }
+    try {
+      await api.delete(`/api/pecas/${deleteTarget.id}`);
+      setIsDeleteOpen(false);
+      fetchPecas();
+      showToast('Peça excluída com sucesso!', 'success');
+    } catch (err: any) {
+      console.error('Erro ao excluir peça:', err);
+      const msg = err.response?.data?.error || 'Erro ao excluir peça.';
+      showToast(msg, 'error');
+    } finally { setSubmitLoading(false); }
   };
 
   const openStatus = (p: PecaAPI) => {
@@ -122,7 +145,16 @@ const Pecas: React.FC = () => {
   const handleStatus = async () => {
     if (!statusTarget) return;
     setSubmitLoading(true);
-    try { await api.put(`/api/pecas/${statusTarget.id}`, { status: statusVal }); setIsStatusOpen(false); fetchPecas(); } catch (err) { console.error('Erro ao atualizar status:', err); } finally { setSubmitLoading(false); }
+    try {
+      await api.put(`/api/pecas/${statusTarget.id}`, { status: statusVal });
+      setIsStatusOpen(false);
+      fetchPecas();
+      showToast('Status da peça atualizado com sucesso!', 'success');
+    } catch (err: any) {
+      console.error('Erro ao atualizar status:', err);
+      const msg = err.response?.data?.error || 'Erro ao atualizar status da peça.';
+      showToast(msg, 'error');
+    } finally { setSubmitLoading(false); }
   };
 
   return (
@@ -155,12 +187,21 @@ const Pecas: React.FC = () => {
               <span className="material-symbols-outlined text-[18px]">filter_list</span>
               Filtros { (filters.tipo !== 'Todos' || filters.status !== 'Todos' || filters.aeronave !== 'Todas') && '•'}
             </button>
-            <button
-              onClick={() => setIsModalOpen(true)}
-              className={btnPrimaryCls}>
-              <span className="material-symbols-outlined text-[18px]">add</span>
-              Nova Peça
-            </button>
+            {temPermissao([NivelPermissao.ADMINISTRADOR, NivelPermissao.ENGENHEIRO]) ? (
+              <button
+                onClick={() => setIsModalOpen(true)}
+                className={btnPrimaryCls}>
+                <span className="material-symbols-outlined text-[18px]">add</span>
+                Nova Peça
+              </button>
+            ) : (
+              <Tooltip label="Apenas Administradores e Engenheiros podem cadastrar peças">
+                <button className={`${btnPrimaryCls} opacity-50 cursor-not-allowed`} disabled>
+                  <span className="material-symbols-outlined text-[18px]">add</span>
+                  Nova Peça
+                </button>
+              </Tooltip>
+            )}
           </div>
         </div>
 
@@ -197,29 +238,32 @@ const Pecas: React.FC = () => {
                       </td>
                       <td className="p-md text-right">
                         <div className="flex items-center justify-end gap-xs lg:opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 transition-opacity">
-                          <Tooltip label="Editar">
+                          <Tooltip label={temPermissao([NivelPermissao.ADMINISTRADOR, NivelPermissao.ENGENHEIRO]) ? "Editar" : "Apenas Administradores e Engenheiros podem editar peças"}>
                             <button
                               aria-label={`Editar peça ${peca.nome}`}
-                              className={actionBtnEditCls}
-                              onClick={() => openEdit(peca)}
+                              className={`${actionBtnEditCls} ${!temPermissao([NivelPermissao.ADMINISTRADOR, NivelPermissao.ENGENHEIRO]) ? 'opacity-40 cursor-not-allowed hover:text-outline-variant hover:bg-transparent' : ''}`}
+                              onClick={() => temPermissao([NivelPermissao.ADMINISTRADOR, NivelPermissao.ENGENHEIRO]) && openEdit(peca)}
+                              disabled={!temPermissao([NivelPermissao.ADMINISTRADOR, NivelPermissao.ENGENHEIRO])}
                             >
                               <span aria-hidden="true" className="material-symbols-outlined text-[20px]">edit</span>
                             </button>
                           </Tooltip>
-                          <Tooltip label="Alterar Status">
+                          <Tooltip label={temPermissao([NivelPermissao.ADMINISTRADOR, NivelPermissao.ENGENHEIRO]) ? "Alterar Status" : "Apenas Administradores e Engenheiros podem alterar status de peças"}>
                             <button
                               aria-label={`Alterar status de ${peca.nome}`}
-                              className={actionBtnStatusCls}
-                              onClick={() => openStatus(peca)}
+                              className={`${actionBtnStatusCls} ${!temPermissao([NivelPermissao.ADMINISTRADOR, NivelPermissao.ENGENHEIRO]) ? 'opacity-40 cursor-not-allowed hover:text-outline-variant hover:bg-transparent' : ''}`}
+                              onClick={() => temPermissao([NivelPermissao.ADMINISTRADOR, NivelPermissao.ENGENHEIRO]) && openStatus(peca)}
+                              disabled={!temPermissao([NivelPermissao.ADMINISTRADOR, NivelPermissao.ENGENHEIRO])}
                             >
                               <span aria-hidden="true" className="material-symbols-outlined text-[20px]">published_with_changes</span>
                             </button>
                           </Tooltip>
-                          <Tooltip label="Excluir">
+                          <Tooltip label={temPermissao([NivelPermissao.ADMINISTRADOR]) ? "Excluir" : "Apenas Administradores podem excluir peças"}>
                             <button
                               aria-label={`Excluir peça ${peca.nome}`}
-                              className={actionBtnDeleteCls}
-                              onClick={() => openDelete(peca)}
+                              className={`${actionBtnDeleteCls} ${!temPermissao([NivelPermissao.ADMINISTRADOR]) ? 'opacity-40 cursor-not-allowed hover:text-outline-variant hover:bg-transparent' : ''}`}
+                              onClick={() => temPermissao([NivelPermissao.ADMINISTRADOR]) && openDelete(peca)}
+                              disabled={!temPermissao([NivelPermissao.ADMINISTRADOR])}
                             >
                               <span aria-hidden="true" className="material-symbols-outlined text-[20px]">delete</span>
                             </button>

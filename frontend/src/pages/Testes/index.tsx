@@ -4,6 +4,8 @@ import Layout from '../../components/Layout';
 import Modal from '../../components/Modal';
 import Tooltip from '../../components/Tooltip';
 import api from '../../services/api';
+import { useAuth, NivelPermissao } from '../../contexts/AuthContext';
+import { useToast } from '../../contexts/ToastContext';
 
 interface TesteAPI {
   id: number;
@@ -34,6 +36,8 @@ const tipoLabels: Record<string, string> = { ELETRICO: 'Elétrico', HIDRAULICO: 
 interface AeronaveAPI { id: number; codigo: string; }
 
 const Testes: React.FC = () => {
+  const { temPermissao } = useAuth();
+  const { showToast } = useToast();
   const [testes, setTestes] = useState<TesteAPI[]>([]);
   const [aeronaves, setAeronaves] = useState<AeronaveAPI[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -77,7 +81,12 @@ const Testes: React.FC = () => {
     try {
       await api.post('/api/testes', { tipo: novoTeste.tipo, resultado: novoTeste.resultado, aeronaveId: Number(novoTeste.aeronaveId) });
       setIsModalOpen(false); setNovoTeste({ aeronaveId: '', tipo: 'ELETRICO', resultado: 'APROVADO' }); fetchTestes();
-    } catch (err) { console.error('Erro ao criar teste:', err); } finally { setSubmitLoading(false); }
+      showToast('Teste registrado com sucesso!', 'success');
+    } catch (err: any) {
+      console.error('Erro ao criar teste:', err);
+      const msg = err.response?.data?.error || 'Erro ao registrar teste.';
+      showToast(msg, 'error');
+    } finally { setSubmitLoading(false); }
   };
 
   const openEdit = (t: TesteAPI) => {
@@ -91,7 +100,12 @@ const Testes: React.FC = () => {
     try {
       await api.put(`/api/testes/${editTarget.id}`, { tipo: editForm.tipo, resultado: editForm.resultado, aeronaveId: Number(editForm.aeronaveId) });
       setIsEditOpen(false); fetchTestes();
-    } catch (err) { console.error('Erro ao editar teste:', err); } finally { setSubmitLoading(false); }
+      showToast('Teste atualizado com sucesso!', 'success');
+    } catch (err: any) {
+      console.error('Erro ao editar teste:', err);
+      const msg = err.response?.data?.error || 'Erro ao editar teste.';
+      showToast(msg, 'error');
+    } finally { setSubmitLoading(false); }
   };
 
   const openResult = (t: TesteAPI) => {
@@ -102,7 +116,16 @@ const Testes: React.FC = () => {
   const handleResult = async () => {
     if (!resultTarget) return;
     setSubmitLoading(true);
-    try { await api.put(`/api/testes/${resultTarget.id}`, { resultado: resultVal }); setIsResultOpen(false); fetchTestes(); } catch (err) { console.error('Erro ao atualizar resultado:', err); } finally { setSubmitLoading(false); }
+    try {
+      await api.put(`/api/testes/${resultTarget.id}`, { resultado: resultVal });
+      setIsResultOpen(false);
+      fetchTestes();
+      showToast('Resultado do teste atualizado com sucesso!', 'success');
+    } catch (err: any) {
+      console.error('Erro ao atualizar resultado:', err);
+      const msg = err.response?.data?.error || 'Erro ao atualizar resultado.';
+      showToast(msg, 'error');
+    } finally { setSubmitLoading(false); }
   };
 
   return (
@@ -135,10 +158,19 @@ const Testes: React.FC = () => {
               <span className="material-symbols-outlined text-[18px]">filter_list</span>
               Filtros { (filters.tipo !== 'Todos' || filters.resultado !== 'Todos' || filters.aeronave !== 'Todas') && '•'}
             </button>
-            <button onClick={() => setIsModalOpen(true)} className={btnPrimaryCls}>
-              <span className="material-symbols-outlined text-[20px]">add</span>
-              Novo Teste
-            </button>
+            {temPermissao([NivelPermissao.ADMINISTRADOR, NivelPermissao.ENGENHEIRO]) ? (
+              <button onClick={() => setIsModalOpen(true)} className={btnPrimaryCls}>
+                <span className="material-symbols-outlined text-[20px]">add</span>
+                Novo Teste
+              </button>
+            ) : (
+              <Tooltip label="Apenas Administradores e Engenheiros podem registrar testes">
+                <button className={`${btnPrimaryCls} opacity-50 cursor-not-allowed`} disabled>
+                  <span className="material-symbols-outlined text-[20px]">add</span>
+                  Novo Teste
+                </button>
+              </Tooltip>
+            )}
           </div>
         </div>
 
@@ -174,20 +206,22 @@ const Testes: React.FC = () => {
                       </td>
                       <td className="py-md px-lg text-right">
                         <div className="flex items-center justify-end gap-xs lg:opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 transition-opacity">
-                          <Tooltip label="Editar">
+                          <Tooltip label={temPermissao([NivelPermissao.ADMINISTRADOR, NivelPermissao.ENGENHEIRO]) ? "Editar" : "Apenas Administradores e Engenheiros podem editar testes"}>
                             <button
                               aria-label={`Editar teste de ${teste.aeronave}`}
-                              className={actionBtnEditCls}
-                              onClick={() => openEdit(teste)}
+                              className={`${actionBtnEditCls} ${!temPermissao([NivelPermissao.ADMINISTRADOR, NivelPermissao.ENGENHEIRO]) ? 'opacity-40 cursor-not-allowed hover:text-outline-variant hover:bg-transparent' : ''}`}
+                              onClick={() => temPermissao([NivelPermissao.ADMINISTRADOR, NivelPermissao.ENGENHEIRO]) && openEdit(teste)}
+                              disabled={!temPermissao([NivelPermissao.ADMINISTRADOR, NivelPermissao.ENGENHEIRO])}
                             >
                               <span aria-hidden="true" className="material-symbols-outlined text-[20px]">edit</span>
                             </button>
                           </Tooltip>
-                          <Tooltip label="Alterar Resultado">
+                          <Tooltip label={temPermissao([NivelPermissao.ADMINISTRADOR, NivelPermissao.ENGENHEIRO]) ? "Alterar Resultado" : "Apenas Administradores e Engenheiros podem alterar resultado de testes"}>
                             <button
                               aria-label={`Aprovar ou reprovar teste de ${teste.aeronave}`}
-                              className={actionBtnCheckCls}
-                              onClick={() => openResult(teste)}
+                              className={`${actionBtnCheckCls} ${!temPermissao([NivelPermissao.ADMINISTRADOR, NivelPermissao.ENGENHEIRO]) ? 'opacity-40 cursor-not-allowed hover:text-outline-variant hover:bg-transparent' : ''}`}
+                              onClick={() => temPermissao([NivelPermissao.ADMINISTRADOR, NivelPermissao.ENGENHEIRO]) && openResult(teste)}
+                              disabled={!temPermissao([NivelPermissao.ADMINISTRADOR, NivelPermissao.ENGENHEIRO])}
                             >
                               <span aria-hidden="true" className="material-symbols-outlined text-[20px]">fact_check</span>
                             </button>
@@ -280,10 +314,10 @@ const Testes: React.FC = () => {
       </Modal>
 
       {/* Modal: Alterar Resultado */}
-      <Modal isOpen={isResultOpen} onClose={() => setIsResultOpen(false)} title={`Resultado — ${resultTarget?.aeronave || ''}`}>
+      <Modal isOpen={isResultOpen} onClose={() => setIsResultOpen(false)} title={`Resultado — ${resultTarget?.aeronave?.codigo || ''}`}>
         <div className="flex flex-col gap-lg">
           <p className="font-body-md text-body-md text-on-surface">
-            Defina o resultado do teste <strong>{resultTarget?.tipo}</strong> para a aeronave <strong>{resultTarget?.aeronave}</strong>:
+            Defina o resultado do teste <strong>{resultTarget?.tipo}</strong> para a aeronave <strong>{resultTarget?.aeronave?.codigo}</strong>:
           </p>
           <div className="flex gap-md">
             <button

@@ -2,7 +2,10 @@ import React, { useState, useEffect, useCallback } from 'react';
 
 import Layout from '../../components/Layout';
 import Modal from '../../components/Modal';
+import Tooltip from '../../components/Tooltip';
 import api from '../../services/api';
+import { useAuth, NivelPermissao } from '../../contexts/AuthContext';
+import { useToast } from '../../contexts/ToastContext';
 
 interface RelatorioAPI {
   id: number;
@@ -26,6 +29,8 @@ const actionBtnDownloadCls = `${actionBtnBaseCls} text-on-surface-variant hover:
 interface AeronaveAPI { id: number; codigo: string; }
 
 const Relatorios: React.FC = () => {
+  const { temPermissao } = useAuth();
+  const { showToast } = useToast();
   const [relatorios, setRelatorios] = useState<RelatorioAPI[]>([]);
   const [aeronaves, setAeronaves] = useState<AeronaveAPI[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -61,7 +66,12 @@ const Relatorios: React.FC = () => {
     try {
       await api.post('/api/relatorios', { aeronaveId: Number(novoRelatorio.aeronaveId) });
       setIsModalOpen(false); setNovoRelatorio({ aeronaveId: '' }); fetchRelatorios();
-    } catch (err) { console.error('Erro ao gerar relatório:', err); } finally { setSubmitLoading(false); }
+      showToast('Relatório gerado com sucesso!', 'success');
+    } catch (err: any) {
+      console.error('Erro ao gerar relatório:', err);
+      const msg = err.response?.data?.error || 'Erro ao gerar relatório.';
+      showToast(msg, 'error');
+    } finally { setSubmitLoading(false); }
   };
 
   const handleView = (rel: RelatorioAPI) => { setViewTarget(rel); setIsViewOpen(true); };
@@ -72,11 +82,18 @@ const Relatorios: React.FC = () => {
       const url = window.URL.createObjectURL(new Blob([res.data]));
       const a = document.createElement('a'); a.href = url; a.download = rel.nomeArquivo; a.click();
       window.URL.revokeObjectURL(url);
-    } catch { /* fallback: download from content */
-      const blob = new Blob([rel.conteudo || ''], { type: 'text/plain' });
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement('a'); a.href = url; a.download = rel.nomeArquivo; a.click();
-      window.URL.revokeObjectURL(url);
+      showToast('Relatório baixado com sucesso!', 'success');
+    } catch (err: any) {
+      /* fallback: download from content */
+      try {
+        const blob = new Blob([rel.conteudo || ''], { type: 'text/plain' });
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a'); a.href = url; a.download = rel.nomeArquivo; a.click();
+        window.URL.revokeObjectURL(url);
+        showToast('Relatório baixado com sucesso!', 'success');
+      } catch (fallbackErr) {
+        showToast('Erro ao baixar relatório.', 'error');
+      }
     }
   };
 
@@ -112,10 +129,19 @@ const Relatorios: React.FC = () => {
               <span className="material-symbols-outlined text-[18px]">filter_list</span>
               Filtros {filters.aeronave !== 'Todas' && '•'}
             </button>
-            <button onClick={() => setIsModalOpen(true)} className={btnPrimaryCls}>
-              <span className="material-symbols-outlined text-[20px]">add_chart</span>
-              Gerar Relatório
-            </button>
+            {temPermissao([NivelPermissao.ADMINISTRADOR, NivelPermissao.ENGENHEIRO]) ? (
+              <button onClick={() => setIsModalOpen(true)} className={btnPrimaryCls}>
+                <span className="material-symbols-outlined text-[20px]">add_chart</span>
+                Gerar Relatório
+              </button>
+            ) : (
+              <Tooltip label="Apenas Administradores e Engenheiros podem gerar relatórios">
+                <button className={`${btnPrimaryCls} opacity-50 cursor-not-allowed`} disabled>
+                  <span className="material-symbols-outlined text-[20px]">add_chart</span>
+                  Gerar Relatório
+                </button>
+              </Tooltip>
+            )}
           </div>
         </div>
 
@@ -157,20 +183,24 @@ const Relatorios: React.FC = () => {
                       </td>
                       <td className="py-md px-lg text-right">
                         <div className="flex items-center justify-end gap-xs lg:opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 transition-opacity">
-                          <button
-                            aria-label={`Visualizar relatório ${relatorio.nomeArquivo}`}
-                            className={actionBtnViewCls}
-                            onClick={() => handleView(relatorio)}
-                          >
-                            <span aria-hidden="true" className="material-symbols-outlined text-[20px]">visibility</span>
-                          </button>
-                          <button
-                            aria-label={`Baixar relatório ${relatorio.nomeArquivo}`}
-                            className={actionBtnDownloadCls}
-                            onClick={() => handleDownload(relatorio)}
-                          >
-                            <span aria-hidden="true" className="material-symbols-outlined text-[20px]">download</span>
-                          </button>
+                          <Tooltip label="Visualizar Relatório">
+                            <button
+                              aria-label={`Visualizar relatório ${relatorio.nomeArquivo}`}
+                              className={actionBtnViewCls}
+                              onClick={() => handleView(relatorio)}
+                            >
+                              <span aria-hidden="true" className="material-symbols-outlined text-[20px]">visibility</span>
+                            </button>
+                          </Tooltip>
+                          <Tooltip label="Baixar Relatório">
+                            <button
+                              aria-label={`Baixar relatório ${relatorio.nomeArquivo}`}
+                              className={actionBtnDownloadCls}
+                              onClick={() => handleDownload(relatorio)}
+                            >
+                              <span aria-hidden="true" className="material-symbols-outlined text-[20px]">download</span>
+                            </button>
+                          </Tooltip>
                         </div>
                       </td>
                     </tr>

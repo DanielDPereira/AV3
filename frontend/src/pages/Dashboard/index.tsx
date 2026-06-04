@@ -2,8 +2,11 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import Layout from '../../components/Layout';
 import Modal from '../../components/Modal';
+import Tooltip from '../../components/Tooltip';
 import api from '../../services/api';
 import { type DashboardAircraft, type DashboardStats } from '../../types/dashboard';
+import { useAuth, NivelPermissao } from '../../contexts/AuthContext';
+import { useToast } from '../../contexts/ToastContext';
 
 const inputCls = "px-sm py-xs border border-outline-variant rounded-lg bg-surface-container-lowest text-on-surface focus:border-primary focus:ring-2 focus:ring-primary-fixed-dim focus:outline-none w-full transition-all";
 const btnPrimaryCls = "flex-1 sm:flex-none bg-primary text-on-primary px-lg py-sm rounded-lg font-label-md text-label-md flex items-center justify-center gap-xs shadow-md hover:bg-primary-container hover:text-on-primary-container transition-all active:scale-[0.98]";
@@ -24,6 +27,8 @@ const getStatusClasses = (status: DashboardAircraft['status']) => {
 };
 
 const Dashboard: React.FC = () => {
+  const { temPermissao } = useAuth();
+  const { showToast } = useToast();
   const [stats, setStats] = useState<DashboardStats>(fallbackStats);
   const [aircrafts, setAircrafts] = useState<DashboardAircraft[]>(fallbackAircrafts);
   const [allAircrafts, setAllAircrafts] = useState<{id: number, codigo: string}[]>([]);
@@ -75,8 +80,11 @@ const Dashboard: React.FC = () => {
       setIsModalAeronaveOpen(false);
       setNovaAeronave({ codigo: '', modelo: '', capacidade: '', alcance: '', tipo: 'COMERCIAL' });
       fetchData(); // Atualiza dashboard
-    } catch (err) {
+      showToast('Aeronave cadastrada com sucesso!', 'success');
+    } catch (err: any) {
       console.error('Erro ao criar aeronave:', err);
+      const msg = err.response?.data?.error || 'Erro ao cadastrar aeronave.';
+      showToast(msg, 'error');
     } finally {
       setSubmitLoading(false);
     }
@@ -95,8 +103,11 @@ const Dashboard: React.FC = () => {
       setIsModalPecaOpen(false);
       setNovaPeca({ aeronaveId: '', nome: '', fornecedor: '', tipo: 'NACIONAL' });
       fetchData();
-    } catch (err) {
+      showToast('Peça adicionada com sucesso!', 'success');
+    } catch (err: any) {
       console.error('Erro ao criar peça:', err);
+      const msg = err.response?.data?.error || 'Erro ao adicionar peça.';
+      showToast(msg, 'error');
     } finally {
       setSubmitLoading(false);
     }
@@ -114,8 +125,11 @@ const Dashboard: React.FC = () => {
       setIsModalEtapaOpen(false);
       setNovaEtapa({ aeronaveId: '', nome: '', prazo: '' });
       fetchData();
-    } catch (err) {
+      showToast('Etapa criada com sucesso!', 'success');
+    } catch (err: any) {
       console.error('Erro ao criar etapa:', err);
+      const msg = err.response?.data?.error || 'Erro ao criar etapa.';
+      showToast(msg, 'error');
     } finally {
       setSubmitLoading(false);
     }
@@ -136,18 +150,47 @@ const Dashboard: React.FC = () => {
                 <h1 className="font-h2 text-h2 text-on-surface">Visão Geral</h1>
               </div>
               <div className="flex flex-wrap gap-xs md:gap-sm">
-                <button onClick={() => setIsModalPecaOpen(true)} className={btnSecondaryCls}>
-                  <span className="material-symbols-outlined text-[18px]">add</span>
-                  Peça
-                </button>
-                <button onClick={() => setIsModalEtapaOpen(true)} className={btnSecondaryCls}>
-                  <span className="material-symbols-outlined text-[18px]">add</span>
-                  Etapa
-                </button>
-                <button onClick={() => setIsModalAeronaveOpen(true)} className={btnPrimaryCls}>
-                  <span className="material-symbols-outlined text-[18px]">add</span>
-                  Aeronave
-                </button>
+                {temPermissao([NivelPermissao.ADMINISTRADOR, NivelPermissao.ENGENHEIRO]) ? (
+                  <button onClick={() => setIsModalPecaOpen(true)} className={btnSecondaryCls}>
+                    <span className="material-symbols-outlined text-[18px]">add</span>
+                    Peça
+                  </button>
+                ) : (
+                  <Tooltip label="Apenas Administradores e Engenheiros podem cadastrar peças">
+                    <button className="flex-1 sm:flex-none bg-surface-container-low border border-outline-variant text-outline px-lg py-sm rounded-lg font-label-md text-label-md flex items-center justify-center gap-xs opacity-50 cursor-not-allowed hover:bg-surface-container-low hover:text-outline hover:shadow-none active:scale-100" disabled>
+                      <span className="material-symbols-outlined text-[18px]">add</span>
+                      Peça
+                    </button>
+                  </Tooltip>
+                )}
+
+                {temPermissao([NivelPermissao.ADMINISTRADOR, NivelPermissao.ENGENHEIRO]) ? (
+                  <button onClick={() => setIsModalEtapaOpen(true)} className={btnSecondaryCls}>
+                    <span className="material-symbols-outlined text-[18px]">add</span>
+                    Etapa
+                  </button>
+                ) : (
+                  <Tooltip label="Apenas Administradores e Engenheiros podem criar etapas">
+                    <button className="flex-1 sm:flex-none bg-surface-container-low border border-outline-variant text-outline px-lg py-sm rounded-lg font-label-md text-label-md flex items-center justify-center gap-xs opacity-50 cursor-not-allowed hover:bg-surface-container-low hover:text-outline hover:shadow-none active:scale-100" disabled>
+                      <span className="material-symbols-outlined text-[18px]">add</span>
+                      Etapa
+                    </button>
+                  </Tooltip>
+                )}
+
+                {temPermissao([NivelPermissao.ADMINISTRADOR, NivelPermissao.ENGENHEIRO]) ? (
+                  <button onClick={() => setIsModalAeronaveOpen(true)} className={btnPrimaryCls}>
+                    <span className="material-symbols-outlined text-[18px]">add</span>
+                    Aeronave
+                  </button>
+                ) : (
+                  <Tooltip label="Apenas Administradores e Engenheiros podem cadastrar aeronaves">
+                    <button className="flex-1 sm:flex-none bg-surface-container-low border border-outline-variant text-outline px-lg py-sm rounded-lg font-label-md text-label-md flex items-center justify-center gap-xs opacity-50 cursor-not-allowed hover:bg-surface-container-low hover:text-outline hover:shadow-none active:scale-100" disabled>
+                      <span className="material-symbols-outlined text-[18px]">add</span>
+                      Aeronave
+                    </button>
+                  </Tooltip>
+                )}
               </div>
             </div>
 

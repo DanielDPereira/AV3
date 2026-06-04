@@ -4,6 +4,8 @@ import Layout from '../../components/Layout';
 import Modal from '../../components/Modal';
 import Tooltip from '../../components/Tooltip';
 import api from '../../services/api';
+import { useAuth, NivelPermissao } from '../../contexts/AuthContext';
+import { useToast } from '../../contexts/ToastContext';
 
 interface FuncAlocado {
   id: number;
@@ -20,6 +22,7 @@ interface EtapaAPI {
   funcionarios?: { funcionario: FuncAlocado }[];
 }
 interface FuncAPI { id: number; nome: string; usuario: string; nivelPermissao: string; }
+interface AeronaveAPI { id: number; codigo: string; }
 
 const inputCls = "px-sm py-xs border border-outline-variant rounded-lg bg-surface-container-lowest text-on-surface focus:border-primary focus:ring-2 focus:ring-primary-fixed-dim focus:outline-none w-full transition-all";
 const btnPrimaryCls = "w-full md:w-auto bg-primary text-on-primary px-lg py-sm rounded-lg font-label-md text-label-md flex items-center justify-center gap-xs shadow-md hover:bg-primary-container hover:text-on-primary-container transition-all active:scale-[0.98]";
@@ -50,6 +53,8 @@ const formatDate = (isoDate: string) => {
 };
 
 const Etapas: React.FC = () => {
+  const { temPermissao } = useAuth();
+  const { showToast } = useToast();
   const location = useLocation();
   const queryParams = new URLSearchParams(location.search);
   const initialSearch = queryParams.get('search') || '';
@@ -105,14 +110,37 @@ const Etapas: React.FC = () => {
     try {
       await api.post('/api/etapas', { nome: novaEtapa.nome, prazo: novaEtapa.prazo, aeronaveId: Number(novaEtapa.aeronaveId) });
       setIsModalOpen(false); setNovaEtapa({ aeronaveId: '', nome: '', prazo: '' }); fetchEtapas();
-    } catch (err) { console.error(err); } finally { setSubmitLoading(false); }
+      showToast('Etapa criada com sucesso!', 'success');
+    } catch (err: any) {
+      console.error(err);
+      const msg = err.response?.data?.error || 'Erro ao criar etapa.';
+      showToast(msg, 'error');
+    } finally { setSubmitLoading(false); }
   };
 
   const handleIniciar = async (id: number) => {
-    try { await api.put(`/api/etapas/${id}`, { status: 'EM_ANDAMENTO' }); setExpandedIds(prev => new Set(prev).add(id)); fetchEtapas(); } catch (err) { console.error(err); }
+    try {
+      await api.put(`/api/etapas/${id}`, { status: 'EM_ANDAMENTO' });
+      setExpandedIds(prev => new Set(prev).add(id));
+      fetchEtapas();
+      showToast('Etapa iniciada com sucesso!', 'success');
+    } catch (err: any) {
+      console.error(err);
+      const msg = err.response?.data?.error || 'Erro ao iniciar etapa.';
+      showToast(msg, 'error');
+    }
   };
   const handleFinalizar = async (id: number) => {
-    try { await api.put(`/api/etapas/${id}`, { status: 'CONCLUIDA' }); setExpandedIds(prev => { const n = new Set(prev); n.delete(id); return n; }); fetchEtapas(); } catch (err) { console.error(err); }
+    try {
+      await api.put(`/api/etapas/${id}`, { status: 'CONCLUIDA' });
+      setExpandedIds(prev => { const n = new Set(prev); n.delete(id); return n; });
+      fetchEtapas();
+      showToast('Etapa concluída com sucesso!', 'success');
+    } catch (err: any) {
+      console.error(err);
+      const msg = err.response?.data?.error || 'Erro ao finalizar etapa.';
+      showToast(msg, 'error');
+    }
   };
 
   const openEdit = (et: EtapaAPI) => { setEditTarget(et); setEditForm({ aeronaveId: String(et.aeronaveId), nome: et.nome, prazo: et.prazo.split('T')[0], status: et.status }); setIsEditOpen(true); };
@@ -121,13 +149,27 @@ const Etapas: React.FC = () => {
     try {
       await api.put(`/api/etapas/${editTarget.id}`, { nome: editForm.nome, prazo: editForm.prazo, status: editForm.status, aeronaveId: Number(editForm.aeronaveId) });
       setIsEditOpen(false); fetchEtapas();
-    } catch (err) { console.error(err); } finally { setSubmitLoading(false); }
+      showToast('Etapa atualizada com sucesso!', 'success');
+    } catch (err: any) {
+      console.error(err);
+      const msg = err.response?.data?.error || 'Erro ao editar etapa.';
+      showToast(msg, 'error');
+    } finally { setSubmitLoading(false); }
   };
 
   const openDelete = (et: EtapaAPI) => { setDeleteTarget(et); setIsDeleteOpen(true); };
   const handleDelete = async () => {
     if (!deleteTarget) return; setSubmitLoading(true);
-    try { await api.delete(`/api/etapas/${deleteTarget.id}`); setIsDeleteOpen(false); fetchEtapas(); } catch (err) { console.error(err); } finally { setSubmitLoading(false); }
+    try {
+      await api.delete(`/api/etapas/${deleteTarget.id}`);
+      setIsDeleteOpen(false);
+      fetchEtapas();
+      showToast('Etapa excluída com sucesso!', 'success');
+    } catch (err: any) {
+      console.error(err);
+      const msg = err.response?.data?.error || 'Erro ao excluir etapa.';
+      showToast(msg, 'error');
+    } finally { setSubmitLoading(false); }
   };
 
   const openAlocar = (et: EtapaAPI) => {
@@ -145,10 +187,23 @@ const Etapas: React.FC = () => {
     try {
       await api.put(`/api/etapas/${alocarTarget.id}/funcionarios`, { funcionarioIds: Array.from(selectedFuncIds) });
       setIsAlocarOpen(false); fetchEtapas();
-    } catch (err) { console.error(err); } finally { setSubmitLoading(false); }
+      showToast('Funcionários alocados com sucesso!', 'success');
+    } catch (err: any) {
+      console.error(err);
+      const msg = err.response?.data?.error || 'Erro ao alocar funcionários.';
+      showToast(msg, 'error');
+    } finally { setSubmitLoading(false); }
   };
   const handleDesalocar = async (etapaId: number, funcId: number) => {
-    try { await api.delete(`/api/etapas/${etapaId}/funcionarios/${funcId}`); fetchEtapas(); } catch (err) { console.error(err); }
+    try {
+      await api.delete(`/api/etapas/${etapaId}/funcionarios/${funcId}`);
+      fetchEtapas();
+      showToast('Funcionário desalocado com sucesso!', 'success');
+    } catch (err: any) {
+      console.error(err);
+      const msg = err.response?.data?.error || 'Erro ao desalocar funcionário.';
+      showToast(msg, 'error');
+    }
   };
 
   const filteredFuncForModal = allFuncs.filter(f =>
@@ -189,12 +244,24 @@ const Etapas: React.FC = () => {
               <span className="material-symbols-outlined text-[18px]">filter_list</span>
               Filtros {(filters.status !== 'Todos' || filters.aeronave !== 'Todas') && '•'}
             </button>
-            <button
-              onClick={() => setIsModalOpen(true)}
-              className={btnPrimaryCls}>
-              <span className="material-symbols-outlined text-[18px]">add</span>
-              Nova Etapa
-            </button>
+            {temPermissao([NivelPermissao.ADMINISTRADOR, NivelPermissao.ENGENHEIRO]) ? (
+              <button
+                onClick={() => setIsModalOpen(true)}
+                className={btnPrimaryCls}>
+                <span className="material-symbols-outlined text-[18px]">add</span>
+                Nova Etapa
+              </button>
+            ) : (
+              <Tooltip label="Apenas Administradores e Engenheiros podem criar etapas">
+                <button
+                  className={`${btnPrimaryCls} opacity-50 cursor-not-allowed`}
+                  disabled
+                >
+                  <span className="material-symbols-outlined text-[18px]">add</span>
+                  Nova Etapa
+                </button>
+              </Tooltip>
+            )}
           </div>
         </div>
 
@@ -228,30 +295,63 @@ const Etapas: React.FC = () => {
                           <td className="px-md md:px-lg py-md text-right align-top">
                             <div className="flex items-center justify-end gap-xs">
                               {etapa.status === 'PENDENTE' && (
-                                <button onClick={() => handleIniciar(etapa.id)} className="bg-primary text-on-primary hover:bg-primary-container text-label-sm px-sm py-1 rounded transition-colors flex items-center gap-xs shadow-sm">
-                                  <span className="material-symbols-outlined text-[16px]">play_arrow</span>
-                                  <span className="hidden lg:inline">Iniciar</span>
-                                </button>
+                                temPermissao([NivelPermissao.ADMINISTRADOR, NivelPermissao.ENGENHEIRO]) ? (
+                                  <button onClick={() => handleIniciar(etapa.id)} className="bg-primary text-on-primary hover:bg-primary-container text-label-sm px-sm py-1 rounded transition-colors flex items-center gap-xs shadow-sm">
+                                    <span className="material-symbols-outlined text-[16px]">play_arrow</span>
+                                    <span className="hidden lg:inline">Iniciar</span>
+                                  </button>
+                                ) : (
+                                  <Tooltip label="Apenas Administradores e Engenheiros podem iniciar etapas">
+                                    <button className="bg-primary text-on-primary text-label-sm px-sm py-1 rounded flex items-center gap-xs shadow-sm opacity-50 cursor-not-allowed" disabled>
+                                      <span className="material-symbols-outlined text-[16px]">play_arrow</span>
+                                      <span className="hidden lg:inline">Iniciar</span>
+                                    </button>
+                                  </Tooltip>
+                                )
                               )}
                               {etapa.status === 'EM_ANDAMENTO' && (
-                                <button onClick={() => handleFinalizar(etapa.id)} className="bg-error-container text-on-error-container hover:bg-error text-label-sm px-sm py-1 rounded transition-colors flex items-center gap-xs shadow-sm">
-                                  <span className="material-symbols-outlined text-[16px]">stop</span>
-                                  <span className="hidden lg:inline">Finalizar</span>
-                                </button>
+                                temPermissao([NivelPermissao.ADMINISTRADOR, NivelPermissao.ENGENHEIRO]) ? (
+                                  <button onClick={() => handleFinalizar(etapa.id)} className="bg-error-container text-on-error-container hover:bg-error text-label-sm px-sm py-1 rounded transition-colors flex items-center gap-xs shadow-sm">
+                                    <span className="material-symbols-outlined text-[16px]">stop</span>
+                                    <span className="hidden lg:inline">Finalizar</span>
+                                  </button>
+                                ) : (
+                                  <Tooltip label="Apenas Administradores e Engenheiros podem finalizar etapas">
+                                    <button className="bg-error-container text-on-error-container text-label-sm px-sm py-1 rounded flex items-center gap-xs shadow-sm opacity-50 cursor-not-allowed" disabled>
+                                      <span className="material-symbols-outlined text-[16px]">stop</span>
+                                      <span className="hidden lg:inline">Finalizar</span>
+                                    </button>
+                                  </Tooltip>
+                                )
                               )}
                               <div className="flex items-center gap-xs lg:opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 transition-opacity">
-                                <Tooltip label="Alocar Funcionários">
-                                  <button aria-label={`Alocar funcionários em ${etapa.nome}`} className={actionBtnAddCls} onClick={() => openAlocar(etapa)}>
+                                <Tooltip label={temPermissao([NivelPermissao.ADMINISTRADOR, NivelPermissao.ENGENHEIRO]) ? "Alocar Funcionários" : "Apenas Administradores e Engenheiros podem alocar funcionários"}>
+                                  <button 
+                                    aria-label={`Alocar funcionários em ${etapa.nome}`} 
+                                    className={`${actionBtnAddCls} ${!temPermissao([NivelPermissao.ADMINISTRADOR, NivelPermissao.ENGENHEIRO]) ? 'opacity-40 cursor-not-allowed hover:text-outline-variant hover:bg-transparent' : ''}`} 
+                                    onClick={() => temPermissao([NivelPermissao.ADMINISTRADOR, NivelPermissao.ENGENHEIRO]) && openAlocar(etapa)}
+                                    disabled={!temPermissao([NivelPermissao.ADMINISTRADOR, NivelPermissao.ENGENHEIRO])}
+                                  >
                                     <span aria-hidden="true" className="material-symbols-outlined text-[20px]">person_add</span>
                                   </button>
                                 </Tooltip>
-                                <Tooltip label="Editar">
-                                  <button aria-label={`Editar ${etapa.nome}`} className={actionBtnEditCls} onClick={() => openEdit(etapa)}>
+                                <Tooltip label={temPermissao([NivelPermissao.ADMINISTRADOR, NivelPermissao.ENGENHEIRO]) ? "Editar" : "Apenas Administradores e Engenheiros podem editar etapas"}>
+                                  <button 
+                                    aria-label={`Editar ${etapa.nome}`} 
+                                    className={`${actionBtnEditCls} ${!temPermissao([NivelPermissao.ADMINISTRADOR, NivelPermissao.ENGENHEIRO]) ? 'opacity-40 cursor-not-allowed hover:text-outline-variant hover:bg-transparent' : ''}`} 
+                                    onClick={() => temPermissao([NivelPermissao.ADMINISTRADOR, NivelPermissao.ENGENHEIRO]) && openEdit(etapa)}
+                                    disabled={!temPermissao([NivelPermissao.ADMINISTRADOR, NivelPermissao.ENGENHEIRO])}
+                                  >
                                     <span aria-hidden="true" className="material-symbols-outlined text-[20px]">edit</span>
                                   </button>
                                 </Tooltip>
-                                <Tooltip label="Excluir">
-                                  <button aria-label={`Excluir ${etapa.nome}`} className={actionBtnDeleteCls} onClick={() => openDelete(etapa)}>
+                                <Tooltip label={temPermissao([NivelPermissao.ADMINISTRADOR]) ? "Excluir" : "Apenas Administradores podem excluir etapas"}>
+                                  <button 
+                                    aria-label={`Excluir ${etapa.nome}`} 
+                                    className={`${actionBtnDeleteCls} ${!temPermissao([NivelPermissao.ADMINISTRADOR]) ? 'opacity-40 cursor-not-allowed hover:text-outline-variant hover:bg-transparent' : ''}`} 
+                                    onClick={() => temPermissao([NivelPermissao.ADMINISTRADOR]) && openDelete(etapa)}
+                                    disabled={!temPermissao([NivelPermissao.ADMINISTRADOR])}
+                                  >
                                     <span aria-hidden="true" className="material-symbols-outlined text-[20px]">delete</span>
                                   </button>
                                 </Tooltip>
