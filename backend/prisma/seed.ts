@@ -10,6 +10,15 @@ import bcrypt from 'bcryptjs';
 const prisma = new PrismaClient();
 
 async function main() {
+  // ── Verificação se o banco já foi populado ─────────────────
+  const totalAeronaves = await prisma.aeronave.count();
+  const totalFuncionarios = await prisma.funcionario.count();
+
+  if (totalAeronaves > 0 && totalFuncionarios > 0) {
+    console.log('⚠️ O banco de dados já possui registros. Pulando seed para evitar duplicidades.\n');
+    return;
+  }
+
   console.log('🌱 Iniciando seed do banco de dados Aerocode...\n');
 
   // ── 1. Funcionários ────────────────────────────────────

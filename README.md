@@ -205,7 +205,7 @@ cd AV3
 cp .env.example .env
 ```
 
-> Os valores padrão do `.env.example` são suficientes para rodar o ambiente de desenvolvimento.
+> **Nota:** As configurações padrão do `.env.example` são suficientes para rodar o ambiente de desenvolvimento. Contudo, se as portas `3001` ou `5173` já estiverem em uso no seu sistema (conflito muito comum caso haja processos Node.js locais ativos), veja a seção [⚠️ Resolução de Conflitos de Porta](#-resolução-de-conflitos-de-porta-ex-porta-3001-ocupada) abaixo.
 
 ### 3. Subir os containers
 
@@ -213,16 +213,9 @@ cp .env.example .env
 docker compose up --build
 ```
 
-### 4. Executar migrations e seed (apenas na primeira vez)
+> **Automatização:** O banco de dados (MySQL) será criado e configurado automaticamente. O backend aguardará o banco ficar saudável (`condition: service_healthy`) e rodará as migrações (`prisma db push`) e o seed inicial (`prisma db seed`) de forma **100% automatizada**. Você não precisa executar comandos manuais em terminais separados.
 
-Em um segundo terminal:
-
-```bash
-docker exec -it aerocode-api npx prisma migrate dev --name init
-docker exec -it aerocode-api npx prisma db seed
-```
-
-### 5. Acessar a aplicação
+### 4. Acessar a aplicação
 
 | Serviço | URL |
 |---|---|
@@ -230,6 +223,42 @@ docker exec -it aerocode-api npx prisma db seed
 | **API (Backend)** | http://localhost:3001 |
 | **Health Check** | http://localhost:3001/api/health |
 | **Swagger (Docs API)** | http://localhost:3001/api/docs |
+
+---
+
+### ⚠️ Resolução de Conflitos de Porta (ex: porta 3001 ocupada)
+
+Se você receber o erro `listen tcp 0.0.0.0:3001: bind: Normalmente é permitida apenas uma utilização de cada endereço de soquete` (ou semelhante para a porta `5173`), significa que algum processo local está escutando nessas portas. 
+
+Você tem duas formas de solucionar isso:
+
+#### Opção A: Alterar as portas no arquivo `.env` (Recomendado)
+Graças à nossa arquitetura parametrizada, você pode alterar as portas expostas no host sem quebrar o container. Abra o arquivo `.env` e mude os valores:
+
+```env
+# Mude a porta do backend de 3001 para 3002:
+API_PORT=3002
+VITE_API_URL=http://localhost:3002
+```
+
+Depois, basta rodar `docker compose up --build` novamente. O Docker Compose mapeará a porta `3002` do seu computador para o container.
+
+#### Opção B: Encerrar o processo que está ocupando a porta
+Se o conflito for gerado por uma execução anterior em segundo plano (como um processo `node` órfão):
+
+- **No Windows (PowerShell):**
+  ```powershell
+  # 1. Descubra o PID (identificador do processo) na porta 3001:
+  netstat -ano | findstr 3001
+  # 2. Finalize o processo usando o PID encontrado (exemplo: 16736):
+  taskkill /F /PID 16736
+  ```
+
+- **No Linux / macOS:**
+  ```bash
+  # 1. Encontre e finalize o processo na porta 3001:
+  kill -9 $(lsof -t -i:3001)
+  ```
 
 ### Comandos úteis
 
